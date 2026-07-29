@@ -1,24 +1,30 @@
 """
-Blog pessoal — Allan Dev
-Flask + SQLite. Admin sem senha (acesso direto por /admin).
+Blog de cyber segurança ofensiva — Allan Dev
+Flask + SQLite. Acesso ao conteúdo exige cadastro/login.
+Admin fica em rota separada, sem senha, não listada na navegação.
 
 Executar:
     python3 app.py
-Sobe em 0.0.0.0:80 (precisa de sudo/root na maioria dos sistemas Unix
-para abrir porta < 1024). Se preferir sem sudo, defina a variável PORT.
+Sobe em 0.0.0.0:80 por padrão (ou na porta que a plataforma definir
+via variável de ambiente PORT — ex: Square Cloud).
 """
 import os
+import re
 import sqlite3
-from datetime import datetime
+import unicodedata
+from datetime import datetime, timedelta
+from functools import wraps
 from pathlib import Path
 
-from flask import Flask, g, render_template, request, redirect, url_for, flash, abort
+from flask import Flask, g, render_template, request, redirect, url_for, flash, abort, session
+from werkzeug.security import generate_password_hash, check_password_hash
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "blog.db"
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-troque-em-producao")
+app.permanent_session_lifetime = timedelta(days=30)
 
 
 # ---------------------------------------------------------------------------
@@ -63,6 +69,7 @@ def init_db():
             tags TEXT NOT NULL DEFAULT '',
             resumo TEXT NOT NULL DEFAULT '',
             corpo TEXT NOT NULL DEFAULT '',
+            nivel TEXT NOT NULL DEFAULT 'Intermediário',
             autor TEXT NOT NULL DEFAULT 'Allan Dev',
             data_publicacao TEXT NOT NULL,
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
@@ -71,6 +78,14 @@ def init_db():
         CREATE TABLE IF NOT EXISTS atividades (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             descricao TEXT NOT NULL,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            senha_hash TEXT NOT NULL,
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
         """
@@ -83,9 +98,6 @@ def init_db():
 
 
 def slugify(titulo: str) -> str:
-    import re
-    import unicodedata
-
     txt = unicodedata.normalize("NFKD", titulo).encode("ascii", "ignore").decode()
     txt = re.sub(r"[^a-zA-Z0-9]+", "-", txt).strip("-").lower()
     return txt
@@ -118,8 +130,8 @@ def _seed(db: sqlite3.Connection):
         usados.add(slug)
 
         db.execute(
-            "INSERT INTO posts (titulo, slug, categoria, tags, resumo, corpo, autor, data_publicacao) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO posts (titulo, slug, categoria, tags, resumo, corpo, nivel, autor, data_publicacao) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, 'Allan Dev', ?)",
             (
                 post["titulo"],
                 slug,
@@ -127,7 +139,7 @@ def _seed(db: sqlite3.Connection):
                 ",".join(post["tags"]),
                 post["resumo"],
                 post["corpo"],
-                "Allan Dev",
+                post.get("nivel", "Intermediário"),
                 post["data"],
             ),
         )
@@ -161,11 +173,120 @@ def get_perfil():
     return row
 
 
+def get_usuario_atual():
+    uid = session.get("uid")
+    if not uid:
+        return None
+    db = get_db()
+    return db.execute("SELECT * FROM usuarios WHERE id = ?", (uid,)).fetchone()
+
+
+@app.context_processor
+def inject_globals():
+    return {"usuario_atual": get_usuario_atual()}
+
+
+def login_requerido(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not session.get("uid"):
+            return redirect(url_for("login", proximo=request.path))
+        return view(*args, **kwargs)
+    return wrapped
+
+
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def registrar_atividade(db, descricao: str):
+    db.execute("INSERT INTO atividades (descricao) VALUES (?)", (descricao,))
+
+
 # ---------------------------------------------------------------------------
-# Rotas públicas — blog
+# Autenticação de usuários
+# ---------------------------------------------------------------------------
+
+@app.route("/cadastro", methods=["GET", "POST"])
+def cadastro():
+    if session.get("uid"):
+        return redirect(url_for("index"))
+
+    if request.method == "POST":
+        nome = request.form.get("nome", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        senha = request.form.get("senha", "")
+        confirmar = request.form.get("confirmar", "")
+
+        erro = None
+        if not nome or len(nome) < 2:
+            erro = "Informe seu nome."
+        elif not EMAIL_RE.match(email):
+            erro = "Email inválido."
+        elif len(senha) < 8:
+            erro = "A senha precisa ter no mínimo 8 caracteres."
+        elif senha != confirmar:
+            erro = "As senhas não conferem."
+
+        db = get_db()
+        if not erro and db.execute("SELECT 1 FROM usuarios WHERE email = ?", (email,)).fetchone():
+            erro = "Já existe uma conta com esse email."
+
+        if erro:
+            flash(erro, "erro")
+            return render_template("auth/cadastro.html", nome=nome, email=email)
+
+        senha_hash = generate_password_hash(senha)
+        cur = db.execute(
+            "INSERT INTO usuarios (nome, email, senha_hash) VALUES (?, ?, ?)",
+            (nome, email, senha_hash),
+        )
+        db.commit()
+
+        session.permanent = True
+        session["uid"] = cur.lastrowid
+        return redirect(url_for("index"))
+
+    return render_template("auth/cadastro.html", nome="", email="")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if session.get("uid"):
+        return redirect(url_for("index"))
+
+    proximo = request.args.get("proximo") or request.form.get("proximo") or url_for("index")
+
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        senha = request.form.get("senha", "")
+
+        db = get_db()
+        usuario = db.execute("SELECT * FROM usuarios WHERE email = ?", (email,)).fetchone()
+
+        if usuario and check_password_hash(usuario["senha_hash"], senha):
+            session.permanent = True
+            session["uid"] = usuario["id"]
+            destino = proximo if proximo.startswith("/") else url_for("index")
+            return redirect(destino)
+
+        flash("Email ou senha inválidos.", "erro")
+        return render_template("auth/login.html", email=email, proximo=proximo)
+
+    return render_template("auth/login.html", email="", proximo=proximo)
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
+# ---------------------------------------------------------------------------
+# Rotas públicas (protegidas por login) — blog
 # ---------------------------------------------------------------------------
 
 @app.route("/")
+@login_requerido
 def index():
     db = get_db()
     categoria = request.args.get("categoria", "").strip()
@@ -207,6 +328,7 @@ def index():
 
 
 @app.route("/post/<slug>")
+@login_requerido
 def post_detalhe(slug):
     db = get_db()
     post = db.execute("SELECT * FROM posts WHERE slug = ?", (slug,)).fetchone()
@@ -222,6 +344,7 @@ def post_detalhe(slug):
 
 
 @app.route("/perfil")
+@login_requerido
 def perfil_publico():
     db = get_db()
     total_posts = db.execute("SELECT COUNT(*) c FROM posts").fetchone()["c"]
@@ -234,14 +357,15 @@ def perfil_publico():
 
 
 # ---------------------------------------------------------------------------
-# Admin — sem senha, acesso direto
+# Admin — sem senha, rota não listada na navegação pública
 # ---------------------------------------------------------------------------
 
-@app.route("/admin")
+@app.route("/painel-allan-dev")
 def admin_dashboard():
     db = get_db()
     total_posts = db.execute("SELECT COUNT(*) c FROM posts").fetchone()["c"]
     total_categorias = db.execute("SELECT COUNT(DISTINCT categoria) c FROM posts").fetchone()["c"]
+    total_usuarios = db.execute("SELECT COUNT(*) c FROM usuarios").fetchone()["c"]
     recentes = db.execute(
         "SELECT * FROM posts ORDER BY criado_em DESC, id DESC LIMIT 6"
     ).fetchall()
@@ -253,24 +377,26 @@ def admin_dashboard():
         perfil=get_perfil(),
         total_posts=total_posts,
         total_categorias=total_categorias,
+        total_usuarios=total_usuarios,
         recentes=recentes,
         atividades=atividades,
     )
 
 
-@app.route("/admin/posts")
+@app.route("/painel-allan-dev/posts")
 def admin_posts():
     db = get_db()
     posts = db.execute("SELECT * FROM posts ORDER BY data_publicacao DESC, id DESC").fetchall()
     return render_template("admin/posts.html", posts=posts, perfil=get_perfil())
 
 
-@app.route("/admin/posts/novo", methods=["GET", "POST"])
+@app.route("/painel-allan-dev/posts/novo", methods=["GET", "POST"])
 def admin_post_novo():
     if request.method == "POST":
         db = get_db()
         titulo = request.form["titulo"].strip()
         categoria = request.form.get("categoria", "Geral").strip() or "Geral"
+        nivel = request.form.get("nivel", "Intermediário").strip() or "Intermediário"
         tags = request.form.get("tags", "").strip()
         resumo = request.form.get("resumo", "").strip()
         corpo = request.form.get("corpo", "").strip()
@@ -288,9 +414,9 @@ def admin_post_novo():
             i += 1
 
         db.execute(
-            "INSERT INTO posts (titulo, slug, categoria, tags, resumo, corpo, autor, data_publicacao) "
-            "VALUES (?, ?, ?, ?, ?, ?, 'Allan Dev', ?)",
-            (titulo, slug, categoria, tags, resumo, corpo, data_publicacao),
+            "INSERT INTO posts (titulo, slug, categoria, tags, resumo, corpo, nivel, autor, data_publicacao) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, 'Allan Dev', ?)",
+            (titulo, slug, categoria, tags, resumo, corpo, nivel, data_publicacao),
         )
         registrar_atividade(db, f"Publicou o post “{titulo}”")
         db.commit()
@@ -300,7 +426,7 @@ def admin_post_novo():
     return render_template("admin/post_form.html", post=None, perfil=get_perfil(), modo="novo")
 
 
-@app.route("/admin/posts/<int:post_id>/editar", methods=["GET", "POST"])
+@app.route("/painel-allan-dev/posts/<int:post_id>/editar", methods=["GET", "POST"])
 def admin_post_editar(post_id):
     db = get_db()
     post = db.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
@@ -310,6 +436,7 @@ def admin_post_editar(post_id):
     if request.method == "POST":
         titulo = request.form["titulo"].strip()
         categoria = request.form.get("categoria", "Geral").strip() or "Geral"
+        nivel = request.form.get("nivel", "Intermediário").strip() or "Intermediário"
         tags = request.form.get("tags", "").strip()
         resumo = request.form.get("resumo", "").strip()
         corpo = request.form.get("corpo", "").strip()
@@ -320,8 +447,8 @@ def admin_post_editar(post_id):
             return render_template("admin/post_form.html", post=request.form, perfil=get_perfil(), modo="editar", post_id=post_id)
 
         db.execute(
-            "UPDATE posts SET titulo=?, categoria=?, tags=?, resumo=?, corpo=?, data_publicacao=? WHERE id=?",
-            (titulo, categoria, tags, resumo, corpo, data_publicacao, post_id),
+            "UPDATE posts SET titulo=?, categoria=?, tags=?, resumo=?, corpo=?, nivel=?, data_publicacao=? WHERE id=?",
+            (titulo, categoria, tags, resumo, corpo, nivel, data_publicacao, post_id),
         )
         registrar_atividade(db, f"Editou o post “{titulo}”")
         db.commit()
@@ -331,7 +458,7 @@ def admin_post_editar(post_id):
     return render_template("admin/post_form.html", post=post, perfil=get_perfil(), modo="editar", post_id=post_id)
 
 
-@app.route("/admin/posts/<int:post_id>/excluir", methods=["POST"])
+@app.route("/painel-allan-dev/posts/<int:post_id>/excluir", methods=["POST"])
 def admin_post_excluir(post_id):
     db = get_db()
     post = db.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
@@ -344,7 +471,7 @@ def admin_post_excluir(post_id):
     return redirect(url_for("admin_posts"))
 
 
-@app.route("/admin/perfil", methods=["GET", "POST"])
+@app.route("/painel-allan-dev/perfil", methods=["GET", "POST"])
 def admin_perfil():
     db = get_db()
     if request.method == "POST":
@@ -367,15 +494,18 @@ def admin_perfil():
     return render_template("admin/perfil.html", perfil=get_perfil())
 
 
-@app.route("/admin/atividades")
+@app.route("/painel-allan-dev/atividades")
 def admin_atividades():
     db = get_db()
     atividades = db.execute("SELECT * FROM atividades ORDER BY criado_em DESC").fetchall()
     return render_template("admin/atividades.html", atividades=atividades, perfil=get_perfil())
 
 
-def registrar_atividade(db, descricao: str):
-    db.execute("INSERT INTO atividades (descricao) VALUES (?)", (descricao,))
+@app.route("/painel-allan-dev/usuarios")
+def admin_usuarios():
+    db = get_db()
+    usuarios = db.execute("SELECT id, nome, email, criado_em FROM usuarios ORDER BY criado_em DESC").fetchall()
+    return render_template("admin/usuarios.html", usuarios=usuarios, perfil=get_perfil())
 
 
 # ---------------------------------------------------------------------------

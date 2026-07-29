@@ -1,0 +1,28 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Usuários — Admin{% endblock %}
+{% block heading %}Usuários{% endblock %}
+
+{% block admin_content %}
+<section class="admin-panel">
+  <div class="admin-panel-head">
+    <h2>Todos os usuários ({{ usuarios|length }})</h2>
+  </div>
+
+  {% if usuarios %}
+  <table class="admin-table">
+    <thead><tr><th>Nome</th><th>Email</th><th>Cadastrado</th></tr></thead>
+    <tbody>
+      {% for u in usuarios %}
+      <tr>
+        <td>{{ u.nome }}</td>
+        <td>{{ u.email }}</td>
+        <td>{{ u.criado_em }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="admin-vazio">Nenhum usuário cadastrado ainda.</p>
+  {% endif %}
+</section>
+{% endblock %}

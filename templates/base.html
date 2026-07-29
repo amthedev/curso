@@ -18,12 +18,18 @@
     </a>
     <nav class="site-nav">
       <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' else '' }}">Início</a>
-      <a href="{{ url_for('index', categoria='Usuários') }}">Usuários</a>
+      <a href="{{ url_for('index', categoria='Pentest') }}">Pentest</a>
       <a href="{{ url_for('index', categoria='Redes') }}">Redes</a>
       <a href="{{ url_for('index', categoria='Linux') }}">Linux</a>
       <a href="{{ url_for('index', categoria='Python') }}">Python</a>
       <a href="{{ url_for('perfil_publico') }}" class="{{ 'active' if request.endpoint == 'perfil_publico' else '' }}">Perfil</a>
-      <a href="{{ url_for('admin_dashboard') }}" class="nav-admin">Admin</a>
+      {% if usuario_atual %}
+        <form method="post" action="{{ url_for('logout') }}" class="nav-form">
+          <button type="submit" class="nav-logout">Sair</button>
+        </form>
+      {% else %}
+        <a href="{{ url_for('login') }}" class="nav-login">Entrar</a>
+      {% endif %}
     </nav>
     <button class="nav-toggle" id="navToggle" aria-label="Abrir menu">
       <span></span><span></span><span></span>
