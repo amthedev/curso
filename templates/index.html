@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Allan Dev — Blog sobre segurança, Linux, redes e Python{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Blog pessoal de segurança da informação</span>
+    <h1>Cyber segurança sem enrolação</h1>
+    <p class="hero-sub">Guias práticos sobre senhas, redes, Linux e Python — escritos para proteger pessoas de verdade, não para impressionar especialista.</p>
+    <form class="search-form" method="get" action="{{ url_for('index') }}">
+      <input type="text" name="q" placeholder="Buscar por assunto, ex: ssh, phishing, senha..." value="{{ busca }}">
+      <button type="submit">Buscar</button>
+    </form>
+  </div>
+</section>
+
+<div class="wrap main-grid">
+  <div class="content-col">
+
+    {% if categoria_ativa or busca %}
+      <div class="filtro-ativo">
+        <span>
+          {% if busca %}Resultados para "<strong>{{ busca }}</strong>"{% endif %}
+          {% if categoria_ativa %}{% if busca %} em{% endif %} categoria <strong>{{ categoria_ativa }}</strong>{% endif %}
+          — {{ total_posts }} post{{ 's' if total_posts != 1 else '' }}
+        </span>
+        <a href="{{ url_for('index') }}" class="limpar-filtro">Limpar filtro ✕</a>
+      </div>
+    {% endif %}
+
+    {% if destaque %}
+      <a href="{{ url_for('post_detalhe', slug=destaque.slug) }}" class="post-destaque">
+        <span class="tag-categoria cat-{{ destaque.categoria|lower }}">{{ destaque.categoria }}</span>
+        <h2>{{ destaque.titulo }}</h2>
+        <p>{{ destaque.resumo }}</p>
+        <div class="post-meta">
+          <span>{{ destaque.autor }}</span>
+          <span>·</span>
+          <span>{{ destaque.data_publicacao | data_br }}</span>
+          <span>·</span>
+          <span>{{ destaque.corpo | tempo_leitura }} min de leitura</span>
+        </div>
+      </a>
+    {% endif %}
+
+    {% if posts %}
+      <div class="post-grid">
+        {% for post in posts %}
+        <a href="{{ url_for('post_detalhe', slug=post.slug) }}" class="post-card">
+          <span class="tag-categoria cat-{{ post.categoria|lower }}">{{ post.categoria }}</span>
+          <h3>{{ post.titulo }}</h3>
+          <p>{{ post.resumo }}</p>
+          <div class="post-meta">
+            <span>{{ post.data_publicacao | data_br }}</span>
+            <span>·</span>
+            <span>{{ post.corpo | tempo_leitura }} min</span>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    {% elif not destaque %}
+      <div class="vazio">
+        <p>Nenhum post encontrado.</p>
+      </div>
+    {% endif %}
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-box">
+      <div class="perfil-mini">
+        <span class="avatar avatar-lg">{{ perfil.avatar if perfil else 'AD' }}</span>
+        <h4>{{ perfil.nome if perfil else 'Allan Dev' }}</h4>
+        <p>{{ perfil.titulo if perfil else '' }}</p>
+      </div>
+      <a href="{{ url_for('perfil_publico') }}" class="btn btn-outline btn-block">Ver perfil</a>
+    </div>
+
+    <div class="sidebar-box">
+      <h4>Categorias</h4>
+      <ul class="lista-categorias">
+        {% for c in categorias %}
+        <li>
+          <a href="{{ url_for('index', categoria=c.categoria) }}" class="{{ 'active' if categoria_ativa == c.categoria else '' }}">
+            {{ c.categoria }} <span>{{ c.total }}</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="sidebar-box sidebar-cta">
+      <h4>Proteja-se hoje</h4>
+      <p>Comece pelo básico: senha longa e única, 2FA ativado e desconfiança de mensagens urgentes.</p>
+    </div>
+  </aside>
+</div>
+{% endblock %}

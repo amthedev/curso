@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ post.titulo }} — Allan Dev{% endblock %}
+
+{% block content %}
+<article class="wrap post-page">
+  <a href="{{ url_for('index') }}" class="voltar">&larr; Voltar para o blog</a>
+
+  <span class="tag-categoria cat-{{ post.categoria|lower }}">{{ post.categoria }}</span>
+  <h1>{{ post.titulo }}</h1>
+
+  <div class="post-meta post-meta-full">
+    <span class="avatar avatar-sm">{{ perfil.avatar if perfil else 'AD' }}</span>
+    <span>{{ post.autor }}</span>
+    <span>·</span>
+    <span>{{ post.data_publicacao | data_br }}</span>
+    <span>·</span>
+    <span>{{ post.corpo | tempo_leitura }} min de leitura</span>
+  </div>
+
+  <div class="post-body" id="postBody" data-raw="{{ post.corpo | e }}"></div>
+
+  {% if post.tags %}
+  <div class="post-tags">
+    {% for tag in post.tags.split(',') %}
+      <span class="chip">#{{ tag.strip() }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="post-autor-box">
+    <span class="avatar avatar-lg">{{ perfil.avatar if perfil else 'AD' }}</span>
+    <div>
+      <strong>{{ perfil.nome if perfil else 'Allan Dev' }}</strong>
+      <p>{{ perfil.bio if perfil else '' }}</p>
+    </div>
+  </div>
+
+  {% if relacionados %}
+  <section class="relacionados">
+    <h3>Leia também em {{ post.categoria }}</h3>
+    <div class="post-grid">
+      {% for r in relacionados %}
+      <a href="{{ url_for('post_detalhe', slug=r.slug) }}" class="post-card">
+        <span class="tag-categoria cat-{{ r.categoria|lower }}">{{ r.categoria }}</span>
+        <h3>{{ r.titulo }}</h3>
+        <p>{{ r.resumo }}</p>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+</article>
+{% endblock %}

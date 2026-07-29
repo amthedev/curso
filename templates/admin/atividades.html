@@ -1,0 +1,26 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Atividades — Admin{% endblock %}
+{% block heading %}Atividades{% endblock %}
+
+{% block admin_content %}
+<section class="admin-panel">
+  {% if atividades %}
+  <ul class="atividade-lista atividade-lista-full">
+    {% for a in atividades %}
+    <li>
+      <span class="atividade-ponto"></span>
+      <div>
+        <p>{{ a.descricao }}</p>
+        <span class="atividade-data">{{ a.criado_em }}</span>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="admin-vazio-box">
+    <p>Nenhuma atividade disponível ainda.</p>
+    <span>As ações feitas no painel — publicar, editar e excluir postagens, atualizar o perfil — vão aparecer aqui.</span>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

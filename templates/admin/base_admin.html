@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Admin — Allan Dev{% endblock %}</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+</head>
+<body class="admin-body">
+
+<div class="admin-shell">
+  <aside class="admin-sidebar">
+    <a href="{{ url_for('admin_dashboard') }}" class="admin-brand">
+      <span class="brand-mark">AD</span>
+      <span>Painel Admin</span>
+    </a>
+
+    <nav class="admin-nav">
+      <a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if request.endpoint == 'admin_dashboard' else '' }}">
+        <span class="ic">▦</span> Visão geral
+      </a>
+      <a href="{{ url_for('admin_posts') }}" class="{{ 'active' if request.endpoint in ['admin_posts','admin_post_novo','admin_post_editar'] else '' }}">
+        <span class="ic">✎</span> Postagens
+      </a>
+      <a href="{{ url_for('admin_perfil') }}" class="{{ 'active' if request.endpoint == 'admin_perfil' else '' }}">
+        <span class="ic">◍</span> Perfil
+      </a>
+      <a href="{{ url_for('admin_atividades') }}" class="{{ 'active' if request.endpoint == 'admin_atividades' else '' }}">
+        <span class="ic">◷</span> Atividades
+      </a>
+    </nav>
+
+    <div class="admin-sidebar-footer">
+      <a href="{{ url_for('index') }}" target="_blank">Ver site publicado ↗</a>
+      <span class="sem-senha-badge">Acesso sem senha</span>
+    </div>
+  </aside>
+
+  <div class="admin-main">
+    <header class="admin-topbar">
+      <h1>{% block heading %}Painel{% endblock %}</h1>
+      <div class="admin-topbar-user">
+        <span class="avatar avatar-sm">{{ perfil.avatar if perfil else 'AD' }}</span>
+        <span>{{ perfil.nome if perfil else 'Allan Dev' }}</span>
+      </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-wrap admin-flash-wrap">
+          {% for categoria, msg in messages %}
+            <div class="flash flash-{{ categoria }}">{{ msg }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="admin-content">
+      {% block admin_content %}{% endblock %}
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+</body>
+</html>

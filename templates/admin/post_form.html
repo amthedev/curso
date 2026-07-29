@@ -1,0 +1,52 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}{{ 'Editar postagem' if modo == 'editar' else 'Nova postagem' }} — Admin{% endblock %}
+{% block heading %}{{ 'Editar postagem' if modo == 'editar' else 'Nova postagem' }}{% endblock %}
+
+{% block admin_content %}
+<section class="admin-panel form-panel">
+  <form method="post" class="admin-form">
+    <div class="form-row">
+      <label for="titulo">Título</label>
+      <input type="text" id="titulo" name="titulo" required
+             value="{{ post.titulo if post else '' }}" placeholder="Ex: Como identificar phishing antes de clicar">
+    </div>
+
+    <div class="form-row form-row-split">
+      <div>
+        <label for="categoria">Categoria</label>
+        <select id="categoria" name="categoria">
+          {% set atual = post.categoria if post else 'Usuários' %}
+          {% for c in ['Usuários', 'Redes', 'Linux', 'Python', 'Geral'] %}
+            <option value="{{ c }}" {{ 'selected' if atual == c else '' }}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="data_publicacao">Data de publicação</label>
+        <input type="date" id="data_publicacao" name="data_publicacao"
+               value="{{ post.data_publicacao if post else '' }}">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label for="tags">Tags <span class="form-hint">separadas por vírgula</span></label>
+      <input type="text" id="tags" name="tags" value="{{ post.tags if post else '' }}" placeholder="senha, autenticação, básico">
+    </div>
+
+    <div class="form-row">
+      <label for="resumo">Resumo <span class="form-hint">aparece na listagem</span></label>
+      <textarea id="resumo" name="resumo" rows="2" placeholder="Uma ou duas frases sobre o post">{{ post.resumo if post else '' }}</textarea>
+    </div>
+
+    <div class="form-row">
+      <label for="corpo">Conteúdo <span class="form-hint">suporta markdown simples: ## título, **negrito**, listas, blocos de código com ```</span></label>
+      <textarea id="corpo" name="corpo" rows="20" required placeholder="Escreva o post aqui...">{{ post.corpo if post else '' }}</textarea>
+    </div>
+
+    <div class="form-actions">
+      <a href="{{ url_for('admin_posts') }}" class="btn btn-outline">Cancelar</a>
+      <button type="submit" class="btn btn-primary">{{ 'Salvar alterações' if modo == 'editar' else 'Publicar postagem' }}</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

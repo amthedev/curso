@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ perfil.nome }} — Perfil{% endblock %}
+
+{% block content %}
+<div class="wrap perfil-page">
+  <div class="perfil-header">
+    <span class="avatar avatar-xl">{{ perfil.avatar }}</span>
+    <h1>{{ perfil.nome }}</h1>
+    <p class="perfil-titulo">{{ perfil.titulo }}</p>
+    <p class="perfil-bio">{{ perfil.bio }}</p>
+    <div class="perfil-info">
+      {% if perfil.email %}<span>✉ {{ perfil.email }}</span>{% endif %}
+      {% if perfil.local %}<span>📍 {{ perfil.local }}</span>{% endif %}
+      <span>📝 {{ total_posts }} publicações</span>
+    </div>
+  </div>
+
+  {% if ultimos %}
+  <section class="perfil-posts">
+    <h3>Últimas publicações</h3>
+    <div class="post-grid">
+      {% for post in ultimos %}
+      <a href="{{ url_for('post_detalhe', slug=post.slug) }}" class="post-card">
+        <span class="tag-categoria cat-{{ post.categoria|lower }}">{{ post.categoria }}</span>
+        <h3>{{ post.titulo }}</h3>
+        <p>{{ post.resumo }}</p>
+        <div class="post-meta">
+          <span>{{ post.data_publicacao | data_br }}</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

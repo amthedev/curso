@@ -1,0 +1,39 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Postagens — Admin{% endblock %}
+{% block heading %}Postagens{% endblock %}
+
+{% block admin_content %}
+<section class="admin-panel">
+  <div class="admin-panel-head">
+    <h2>Todas as postagens ({{ posts|length }})</h2>
+    <a href="{{ url_for('admin_post_novo') }}" class="btn btn-primary btn-sm">+ Nova postagem</a>
+  </div>
+
+  {% if posts %}
+  <table class="admin-table">
+    <thead><tr><th>Título</th><th>Categoria</th><th>Data</th><th>Ações</th></tr></thead>
+    <tbody>
+      {% for p in posts %}
+      <tr>
+        <td>
+          <a href="{{ url_for('admin_post_editar', post_id=p.id) }}">{{ p.titulo }}</a>
+          <div class="admin-table-sub">{{ p.resumo[:80] }}{{ '…' if p.resumo|length > 80 else '' }}</div>
+        </td>
+        <td><span class="tag-categoria cat-{{ p.categoria|lower }}">{{ p.categoria }}</span></td>
+        <td>{{ p.data_publicacao | data_br }}</td>
+        <td class="admin-table-acoes">
+          <a href="{{ url_for('post_detalhe', slug=p.slug) }}" target="_blank" class="link-sutil">ver</a>
+          <a href="{{ url_for('admin_post_editar', post_id=p.id) }}" class="link-sutil">editar</a>
+          <form method="post" action="{{ url_for('admin_post_excluir', post_id=p.id) }}" class="inline-form" data-confirm="Excluir a postagem “{{ p.titulo }}”? Essa ação não pode ser desfeita.">
+            <button type="submit" class="link-sutil link-danger">excluir</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="admin-vazio">Nenhuma postagem ainda. <a href="{{ url_for('admin_post_novo') }}">Crie a primeira</a>.</p>
+  {% endif %}
+</section>
+{% endblock %}

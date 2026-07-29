@@ -1,0 +1,68 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Visão geral — Admin{% endblock %}
+{% block heading %}Visão geral{% endblock %}
+
+{% block admin_content %}
+<div class="stat-grid">
+  <div class="stat-card">
+    <span class="stat-value">{{ total_posts }}</span>
+    <span class="stat-label">Postagens publicadas</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-value">{{ total_categorias }}</span>
+    <span class="stat-label">Categorias em uso</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-value">{{ atividades|length }}</span>
+    <span class="stat-label">Atividades registradas</span>
+  </div>
+</div>
+
+<div class="admin-grid-2">
+  <section class="admin-panel">
+    <div class="admin-panel-head">
+      <h2>Postagens recentes</h2>
+      <a href="{{ url_for('admin_post_novo') }}" class="btn btn-primary btn-sm">+ Nova postagem</a>
+    </div>
+    {% if recentes %}
+    <table class="admin-table">
+      <thead><tr><th>Título</th><th>Categoria</th><th>Data</th><th></th></tr></thead>
+      <tbody>
+        {% for p in recentes %}
+        <tr>
+          <td><a href="{{ url_for('admin_post_editar', post_id=p.id) }}">{{ p.titulo }}</a></td>
+          <td><span class="tag-categoria cat-{{ p.categoria|lower }}">{{ p.categoria }}</span></td>
+          <td>{{ p.data_publicacao | data_br }}</td>
+          <td><a href="{{ url_for('post_detalhe', slug=p.slug) }}" target="_blank" class="link-sutil">ver ↗</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="admin-vazio">Nenhuma postagem ainda.</p>
+    {% endif %}
+  </section>
+
+  <section class="admin-panel">
+    <div class="admin-panel-head">
+      <h2>Atividades</h2>
+      <a href="{{ url_for('admin_atividades') }}" class="link-sutil">ver todas</a>
+    </div>
+    {% if atividades %}
+    <ul class="atividade-lista">
+      {% for a in atividades %}
+      <li>
+        <span class="atividade-ponto"></span>
+        <div>
+          <p>{{ a.descricao }}</p>
+          <span class="atividade-data">{{ a.criado_em }}</span>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="admin-vazio">Nenhuma atividade disponível ainda.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

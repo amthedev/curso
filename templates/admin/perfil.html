@@ -1,0 +1,45 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Perfil — Admin{% endblock %}
+{% block heading %}Perfil{% endblock %}
+
+{% block admin_content %}
+<section class="admin-panel form-panel">
+  <form method="post" class="admin-form">
+    <div class="form-row form-row-split">
+      <div>
+        <label for="nome">Nome</label>
+        <input type="text" id="nome" name="nome" required value="{{ perfil.nome }}">
+      </div>
+      <div>
+        <label for="avatar">Iniciais do avatar</label>
+        <input type="text" id="avatar" name="avatar" maxlength="3" value="{{ perfil.avatar }}">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label for="titulo">Título / cargo</label>
+      <input type="text" id="titulo" name="titulo" value="{{ perfil.titulo }}" placeholder="Ex: Analista de Segurança da Informação">
+    </div>
+
+    <div class="form-row">
+      <label for="bio">Bio</label>
+      <textarea id="bio" name="bio" rows="3">{{ perfil.bio }}</textarea>
+    </div>
+
+    <div class="form-row form-row-split">
+      <div>
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" value="{{ perfil.email }}">
+      </div>
+      <div>
+        <label for="local">Localização</label>
+        <input type="text" id="local" name="local" value="{{ perfil.local }}">
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Salvar perfil</button>
+    </div>
+  </form>
+</section>
+{% endblock %}
