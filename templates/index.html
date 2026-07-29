@@ -1,44 +1,70 @@
 {% extends "base.html" %}
-{% block title %}Allan Dev — Blog sobre segurança, Linux, redes e Python{% endblock %}
+{% block title %}Allan Dev — Security Research & Pentest{% endblock %}
 
 {% block content %}
+<!-- HERO -->
 <section class="hero">
   <div class="wrap">
-    <span class="eyebrow">Blog pessoal de segurança da informação</span>
-    <h1>Cyber segurança sem enrolação</h1>
-    <p class="hero-sub">Guias práticos sobre senhas, redes, Linux e Python — escritos para proteger pessoas de verdade, não para impressionar especialista.</p>
+    <span class="hero-eyebrow">Security Research</span>
+    <h1>Domine o<br>lado ofensivo.</h1>
+    <p class="hero-sub">Pentest, CTF, red team, exploits e automação. Conteúdo técnico escrito por quem executa — não só por quem fala.</p>
+
     <form class="search-form" method="get" action="{{ url_for('index') }}">
-      <input type="text" name="q" placeholder="Buscar por assunto, ex: ssh, phishing, senha..." value="{{ busca }}">
+      <input type="text" name="q" placeholder="Buscar: nmap, sql injection, buffer overflow..." value="{{ busca }}">
       <button type="submit">Buscar</button>
     </form>
+
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <strong>{{ total_posts }}</strong>
+        <span>Posts</span>
+      </div>
+      <div class="hero-stat">
+        <strong>{{ categorias|length }}</strong>
+        <span>Categorias</span>
+      </div>
+      <div class="hero-stat">
+        <strong>100%</strong>
+        <span>Ofensivo</span>
+      </div>
+    </div>
   </div>
 </section>
 
-<div class="wrap main-grid">
+<!-- MAIN GRID -->
+<div class="main-grid">
   <div class="content-col">
 
     {% if categoria_ativa or busca %}
       <div class="filtro-ativo">
         <span>
-          {% if busca %}Resultados para "<strong>{{ busca }}</strong>"{% endif %}
+          {% if busca %}Resultados para &ldquo;<strong>{{ busca }}</strong>&rdquo;{% endif %}
           {% if categoria_ativa %}{% if busca %} em{% endif %} categoria <strong>{{ categoria_ativa }}</strong>{% endif %}
-          — {{ total_posts }} post{{ 's' if total_posts != 1 else '' }}
+          &nbsp;&mdash; {{ total_posts }} post{{ 's' if total_posts != 1 else '' }}
         </span>
-        <a href="{{ url_for('index') }}" class="limpar-filtro">Limpar filtro ✕</a>
+        <a href="{{ url_for('index') }}" class="limpar-filtro">Limpar ✕</a>
       </div>
     {% endif %}
 
     {% if destaque %}
       <a href="{{ url_for('post_detalhe', slug=destaque.slug) }}" class="post-destaque">
-        <span class="tag-categoria cat-{{ destaque.categoria|lower }}">{{ destaque.categoria }}</span>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+          <span class="tag-categoria cat-{{ destaque.categoria|lower|replace(' ','') }}">{{ destaque.categoria }}</span>
+          {% if destaque.nivel %}
+            <span class="nivel-badge nivel-{{ destaque.nivel|lower }}">{{ destaque.nivel }}</span>
+          {% endif %}
+        </div>
         <h2>{{ destaque.titulo }}</h2>
         <p>{{ destaque.resumo }}</p>
         <div class="post-meta">
+          <span class="avatar avatar-sm">AD</span>
           <span>{{ destaque.autor }}</span>
-          <span>·</span>
+          <span class="post-meta-dot">&middot;</span>
           <span>{{ destaque.data_publicacao | data_br }}</span>
-          <span>·</span>
-          <span>{{ destaque.corpo | tempo_leitura }} min de leitura</span>
+          <span class="post-meta-dot">&middot;</span>
+          <span>{{ destaque.corpo | tempo_leitura }} min</span>
+          <span class="post-meta-dot">&middot;</span>
+          <span style="color:var(--accent);font-weight:600">Destaque &rarr;</span>
         </div>
       </a>
     {% endif %}
@@ -47,12 +73,17 @@
       <div class="post-grid">
         {% for post in posts %}
         <a href="{{ url_for('post_detalhe', slug=post.slug) }}" class="post-card">
-          <span class="tag-categoria cat-{{ post.categoria|lower }}">{{ post.categoria }}</span>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <span class="tag-categoria cat-{{ post.categoria|lower|replace(' ','') }}">{{ post.categoria }}</span>
+            {% if post.nivel %}
+              <span class="nivel-badge nivel-{{ post.nivel|lower }}">{{ post.nivel }}</span>
+            {% endif %}
+          </div>
           <h3>{{ post.titulo }}</h3>
           <p>{{ post.resumo }}</p>
           <div class="post-meta">
             <span>{{ post.data_publicacao | data_br }}</span>
-            <span>·</span>
+            <span class="post-meta-dot">&middot;</span>
             <span>{{ post.corpo | tempo_leitura }} min</span>
           </div>
         </a>
@@ -61,37 +92,61 @@
     {% elif not destaque %}
       <div class="vazio">
         <p>Nenhum post encontrado.</p>
+        <a href="{{ url_for('index') }}" class="btn btn-outline" style="margin-top:12px;">Ver tudo</a>
       </div>
     {% endif %}
+
   </div>
 
+  <!-- SIDEBAR -->
   <aside class="sidebar">
+
+    <!-- Autor -->
     <div class="sidebar-box">
       <div class="perfil-mini">
-        <span class="avatar avatar-lg">{{ perfil.avatar if perfil else 'AD' }}</span>
+        <span class="avatar avatar-lg">AD</span>
         <h4>{{ perfil.nome if perfil else 'Allan Dev' }}</h4>
-        <p>{{ perfil.titulo if perfil else '' }}</p>
+        <p>{{ perfil.titulo if perfil else 'Security Researcher' }}</p>
       </div>
-      <a href="{{ url_for('perfil_publico') }}" class="btn btn-outline btn-block">Ver perfil</a>
+      <a href="{{ url_for('perfil_publico') }}" class="btn btn-outline btn-block btn-sm">Ver perfil &rarr;</a>
     </div>
 
+    <!-- Categorias -->
     <div class="sidebar-box">
       <h4>Categorias</h4>
       <ul class="lista-categorias">
         {% for c in categorias %}
         <li>
-          <a href="{{ url_for('index', categoria=c.categoria) }}" class="{{ 'active' if categoria_ativa == c.categoria else '' }}">
-            {{ c.categoria }} <span>{{ c.total }}</span>
+          <a href="{{ url_for('index', categoria=c.categoria) }}"
+             class="{{ 'active' if categoria_ativa == c.categoria else '' }}">
+            {{ c.categoria }}<span>{{ c.total }}</span>
           </a>
         </li>
         {% endfor %}
       </ul>
     </div>
 
-    <div class="sidebar-box sidebar-cta">
-      <h4>Proteja-se hoje</h4>
-      <p>Comece pelo básico: senha longa e única, 2FA ativado e desconfiança de mensagens urgentes.</p>
+    <!-- Terminal widget -->
+    <div class="sidebar-box sidebar-terminal">
+      <div class="term-bar">
+        <span class="term-dot"></span>
+        <span class="term-dot"></span>
+        <span class="term-dot"></span>
+      </div>
+      <div class="term-lines">
+        <div class="term-line"><span class="term-prompt">$</span><span class="term-cmd">nmap -sV -p- target.io</span></div>
+        <div class="term-line"><span class="term-prompt">$</span><span class="term-cmd">sqlmap -u "url" --dbs</span></div>
+        <div class="term-line"><span class="term-prompt">$</span><span class="term-cmd">python exploit.py --rce</span></div>
+        <div class="term-line" style="color:var(--accent);">&gt; acesso obtido _</div>
+      </div>
     </div>
+
+    <!-- CTA -->
+    <div class="sidebar-box sidebar-cta">
+      <h4>Comece por aqui</h4>
+      <p>Se é iniciante, vá em <strong>Fundamentos</strong>. Se já tem base, pule direto para <strong>Pentest</strong> ou <strong>CTF</strong>.</p>
+    </div>
+
   </aside>
 </div>
 {% endblock %}
