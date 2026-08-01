@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Atividades — Allan Dev{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/atividades.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="trilha-hero">
+  <div class="wrap">
+    <span class="hero-eyebrow">🎯 Modo prático</span>
+    <h1>Atividades</h1>
+    <p class="hero-sub">
+      Nada de só ler teoria. Aqui você estuda o conteúdo e depois
+      <strong>coloca a mão na massa</strong> num terminal Linux de verdade (simulado no navegador).
+      Complete missões, ganhe XP e capture flags.
+    </p>
+    <div class="xp-global">
+      <span class="xp-global-label">Seu XP total</span>
+      <strong class="xp-global-valor">{{ xp_usuario }} XP</strong>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <div class="trilha-lista">
+    {% for c in cards %}
+    <a href="{{ url_for('licao_detalhe', slug=c.licao.slug) }}" class="trilha-card {{ 'trilha-concluida' if c.concluida else '' }}">
+      <div class="trilha-card-topo">
+        <span class="trilha-num">{{ '%02d' % c.licao.ordem }}</span>
+        <span class="nivel-badge nivel-{{ c.licao.nivel|lower }}">{{ c.licao.nivel }}</span>
+        {% if c.concluida %}
+          <span class="trilha-status status-concluida">✓ Concluída</span>
+        {% elif c.em_andamento %}
+          <span class="trilha-status status-andamento">● Em andamento</span>
+        {% else %}
+          <span class="trilha-status status-disponivel">◆ Disponível hoje</span>
+        {% endif %}
+      </div>
+      <h3>{{ c.licao.titulo }}</h3>
+      <p>{{ c.licao.descricao }}</p>
+      <div class="trilha-card-meta">
+        <span>🚩 {{ c.total_missoes }} missões</span>
+        <span>⚡ {{ c.xp_total }} XP</span>
+        {% if c.missoes_feitas %}
+        <span>✅ {{ c.missoes_feitas }}/{{ c.total_missoes }} feitas</span>
+        {% endif %}
+      </div>
+      {% set pct = (c.missoes_feitas / c.total_missoes * 100) | round | int if c.total_missoes else 0 %}
+      <div class="trilha-progresso">
+        <div class="trilha-progresso-fill" style="width: {{ pct }}%"></div>
+      </div>
+    </a>
+    {% else %}
+    <div class="vazio">
+      <p>Nenhuma atividade disponível ainda. Volte em breve!</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}{{ licao.titulo }} — Atividades — Allan Dev{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/atividades.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="post-layout licao-layout">
+
+  <!-- CONTEÚDO DA LIÇÃO -->
+  <article>
+    <a href="{{ url_for('atividades_index') }}" class="voltar">&larr; Todas as atividades</a>
+
+    <header class="post-header">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+        <span class="tag-categoria">Atividade {{ '%02d' % licao.ordem }}</span>
+        <span class="nivel-badge nivel-{{ licao.nivel|lower }}">{{ licao.nivel }}</span>
+        <span class="xp-badge">⚡ {{ xp_total }} XP</span>
+      </div>
+      <h1>{{ licao.titulo }}</h1>
+      <div class="post-meta post-meta-full">
+        <span class="avatar avatar-sm">AD</span>
+        <span>Allan Dev</span>
+        <span class="post-meta-dot">&middot;</span>
+        <span>{{ licao.conteudo | tempo_leitura }} min de leitura</span>
+        <span class="post-meta-dot">&middot;</span>
+        <span>🚩 {{ missoes|length }} missões práticas</span>
+      </div>
+    </header>
+
+    <div class="post-body" id="postBody" data-raw="{{ licao.conteudo | e }}"></div>
+
+    <!-- PORTÃO DA LEITURA -->
+    {% if not leitura_ok %}
+    <div class="leitura-gate">
+      <h3>📖 Terminou a leitura?</h3>
+      <p>O laboratório prático é liberado só depois que você lê o material. Sem cola — o aprendizado é real.</p>
+      <form method="post" action="{{ url_for('licao_leitura', slug=licao.slug) }}">
+        <button type="submit" class="btn-lab">🔓 Li tudo — liberar laboratório</button>
+      </form>
+    </div>
+    {% endif %}
+
+    <!-- LABORATÓRIO -->
+    <section id="lab" class="lab {{ 'lab-locked' if not leitura_ok else '' }}">
+      {% if leitura_ok %}
+
+      <div class="lab-header">
+        <div>
+          <h2>🧪 Laboratório prático</h2>
+          <p class="lab-sub">Um terminal Linux de mentira, mas um aprendizado de verdade. Complete as missões na ordem que quiser.</p>
+        </div>
+        <div class="lab-xp">
+          <strong id="xpAtual">{{ missoes_feitas | length }}</strong>/<span id="xpTotalMissoes">{{ missoes|length }}</span> missões
+          <div class="lab-xp-bar"><div class="lab-xp-fill" id="xpFill"></div></div>
+        </div>
+      </div>
+
+      <!-- MISSÕES -->
+      <div class="missoes" id="missoes">
+        {% for m in missoes %}
+        <div class="missao {{ 'missao-feita' if m.id in missoes_feitas else '' }}" id="missao-{{ m.id }}" data-missao="{{ m.id }}">
+          <div class="missao-check">{% if m.id in missoes_feitas %}✓{% else %}{{ loop.index }}{% endif %}</div>
+          <div class="missao-info">
+            <strong>{{ m.titulo }}</strong>
+            <p>{{ m.descricao }}</p>
+            <details class="missao-dica">
+              <summary>💡 Dica</summary>
+              <span>{{ m.dica }}</span>
+            </details>
+          </div>
+          <span class="missao-xp">+{{ m.xp }} XP</span>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- TERMINAL -->
+      <div class="terminal-box">
+        <div class="terminal-titlebar">
+          <span class="t-dot t-red"></span>
+          <span class="t-dot t-yellow"></span>
+          <span class="t-dot t-green"></span>
+          <span class="terminal-title">aluno@lab-linux: ~</span>
+        </div>
+        <div class="terminal" id="terminal" tabindex="0">
+          <div class="terminal-out" id="terminalOut"></div>
+          <div class="terminal-inputline">
+            <span class="prompt" id="promptLabel">aluno@lab-linux:~$</span>
+            <input type="text" id="terminalInput" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Terminal Linux" />
+          </div>
+        </div>
+        <div class="terminal-dica">Clique no terminal e digite <code>help</code> para ver os comandos. ↑↓ navega no histórico, TAB completa.</div>
+      </div>
+
+      <!-- PARABÉNS -->
+      <div class="lab-concluido" id="labConcluido" style="{{ '' if concluida else 'display:none;' }}">
+        <div class="lab-concluido-inner">
+          <span class="lab-trofeu">🏆</span>
+          <h3>Atividade concluída!</h3>
+          <p>Você completou todas as {{ missoes|length }} missões e faturou <strong>{{ xp_total }} XP</strong>. A flag <code>FLAG{pr1m31r0_c0nt4t0}</code> é sua.</p>
+          <a href="{{ url_for('atividades_index') }}" class="btn-lab">← Voltar às atividades</a>
+        </div>
+      </div>
+
+      {% else %}
+      <div class="lab-trancado">
+        <span>🔒</span>
+        <p>Leia o material acima e clique no botão para desbloquear o laboratório.</p>
+      </div>
+      {% endif %}
+    </section>
+  </article>
+
+  <!-- SIDEBAR -->
+  <aside class="toc-sidebar">
+    <div class="toc-box">
+      <h5>Nesta atividade</h5>
+      <ul class="toc-list" id="tocList"></ul>
+    </div>
+    {% if leitura_ok %}
+    <div class="toc-box">
+      <h5>Progresso</h5>
+      <ul class="toc-list toc-missoes" id="tocMissoes"></ul>
+    </div>
+    {% endif %}
+  </aside>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  // TOC (mesmo comportamento do post)
+  const body = document.getElementById('postBody');
+  const toc  = document.getElementById('tocList');
+  if (body && toc) {
+    requestAnimationFrame(function() {
+      setTimeout(function() {
+        const headings = body.querySelectorAll('h2');
+        headings.forEach(function(h, i) {
+          if (!h.id) h.id = 'sec-' + i;
+          const li = document.createElement('li');
+          const a  = document.createElement('a');
+          a.href = '#' + h.id;
+          a.textContent = h.textContent;
+          li.appendChild(a);
+          toc.appendChild(li);
+        });
+        const links = toc.querySelectorAll('a');
+        const obs = new IntersectionObserver(function(entries) {
+          entries.forEach(function(e) {
+            if (e.isIntersecting) {
+              links.forEach(function(l) { l.classList.remove('toc-active'); });
+              const link = toc.querySelector('a[href="#' + e.target.id + '"]');
+              if (link) link.classList.add('toc-active');
+            }
+          });
+        }, { rootMargin: '-62px 0px -60% 0px' });
+        headings.forEach(function(h) { obs.observe(h); });
+      }, 80);
+    });
+  }
+})();
+</script>
+
+{% if leitura_ok %}
+<script>
+  window.LAB_CONFIG = {
+    progressoUrl: {{ url_for('licao_progresso', slug=licao.slug) | tojson }},
+    missoes: {{ missoes | tojson }},
+    feitas: {{ missoes_feitas | tojson }},
+    concluida: {{ 'true' if concluida else 'false' }}
+  };
+</script>
+<script src="{{ url_for('static', filename='js/terminal.js') }}"></script>
+{% endif %}
+{% endblock %}

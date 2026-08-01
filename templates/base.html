@@ -24,6 +24,7 @@
 
     <nav class="site-nav" id="siteNav">
       <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' else '' }}">Início</a>
+      <a href="{{ url_for('atividades_index') }}" class="{{ 'active' if request.endpoint in ('atividades_index', 'licao_detalhe') else '' }}">🎯 Atividades</a>
       <a href="{{ url_for('index') }}?cat=Pentest">Pentest</a>
       <a href="{{ url_for('index') }}?cat=Linux">Linux</a>
       <a href="{{ url_for('index') }}?cat=Redes">Redes</a>

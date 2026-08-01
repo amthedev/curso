@@ -8,6 +8,7 @@ Executar:
 Sobe em 0.0.0.0:80 por padrão (ou na porta que a plataforma definir
 via variável de ambiente PORT — ex: Square Cloud).
 """
+import json
 import os
 import re
 import sqlite3
@@ -88,12 +89,36 @@ def init_db():
             senha_hash TEXT NOT NULL,
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS licoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT NOT NULL,
+            slug TEXT NOT NULL UNIQUE,
+            descricao TEXT NOT NULL DEFAULT '',
+            nivel TEXT NOT NULL DEFAULT 'Iniciante',
+            conteudo TEXT NOT NULL DEFAULT '',
+            missoes TEXT NOT NULL DEFAULT '[]',
+            ordem INTEGER NOT NULL DEFAULT 0,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS licao_progresso (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+            licao_id INTEGER NOT NULL REFERENCES licoes(id),
+            leitura_ok INTEGER NOT NULL DEFAULT 0,
+            missoes_feitas TEXT NOT NULL DEFAULT '[]',
+            concluida INTEGER NOT NULL DEFAULT 0,
+            atualizado_em TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE (usuario_id, licao_id)
+        );
         """
     )
     db.commit()
 
     if fresh:
         _seed(db)
+    _seed_licoes(db)
     db.close()
 
 
@@ -141,6 +166,36 @@ def _seed(db: sqlite3.Connection):
                 post["corpo"],
                 post.get("nivel", "Intermediário"),
                 post["data"],
+            ),
+        )
+    db.commit()
+
+
+def _seed_licoes(db: sqlite3.Connection):
+    """Garante que as licoes padrao existam (roda sempre, sem duplicar)."""
+    from licoes_data import SEED_LICOES
+
+    for licao in SEED_LICOES:
+        db.execute(
+            """
+            INSERT INTO licoes (titulo, slug, descricao, nivel, conteudo, missoes, ordem)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(slug) DO UPDATE SET
+                titulo = excluded.titulo,
+                descricao = excluded.descricao,
+                nivel = excluded.nivel,
+                conteudo = excluded.conteudo,
+                missoes = excluded.missoes,
+                ordem = excluded.ordem
+            """,
+            (
+                licao["titulo"],
+                licao["slug"],
+                licao["descricao"],
+                licao["nivel"],
+                licao["conteudo"],
+                json.dumps(licao["missoes"], ensure_ascii=False),
+                licao.get("ordem", 0),
             ),
         )
     db.commit()
@@ -354,6 +409,142 @@ def perfil_publico():
     return render_template(
         "perfil.html", perfil=get_perfil(), total_posts=total_posts, ultimos=ultimos
     )
+
+
+# ---------------------------------------------------------------------------
+# Atividades — trilhas de estudo com laboratório prático
+# ---------------------------------------------------------------------------
+
+def get_progresso(usuario_id: int, licao_id: int):
+    db = get_db()
+    row = db.execute(
+        "SELECT * FROM licao_progresso WHERE usuario_id = ? AND licao_id = ?",
+        (usuario_id, licao_id),
+    ).fetchone()
+    if row:
+        return row
+    db.execute(
+        "INSERT INTO licao_progresso (usuario_id, licao_id) VALUES (?, ?)",
+        (usuario_id, licao_id),
+    )
+    db.commit()
+    return db.execute(
+        "SELECT * FROM licao_progresso WHERE usuario_id = ? AND licao_id = ?",
+        (usuario_id, licao_id),
+    ).fetchone()
+
+
+@app.route("/atividades")
+@login_requerido
+def atividades_index():
+    db = get_db()
+    uid = session["uid"]
+    licoes = db.execute("SELECT * FROM licoes ORDER BY ordem, id").fetchall()
+
+    cards = []
+    for l in licoes:
+        missoes = json.loads(l["missoes"])
+        prog = get_progresso(uid, l["id"])
+        feitas = json.loads(prog["missoes_feitas"])
+        xp_total = sum(m.get("xp", 0) for m in missoes)
+        xp_ganho = sum(m.get("xp", 0) for m in missoes if m["id"] in feitas)
+        cards.append({
+            "licao": l,
+            "total_missoes": len(missoes),
+            "missoes_feitas": len(feitas),
+            "xp_total": xp_total,
+            "xp_ganho": xp_ganho,
+            "concluida": bool(prog["concluida"]),
+            "em_andamento": bool(prog["leitura_ok"] or feitas) and not prog["concluida"],
+        })
+
+    xp_usuario = sum(c["xp_ganho"] for c in cards)
+    return render_template(
+        "atividades/index.html", cards=cards, xp_usuario=xp_usuario, perfil=get_perfil()
+    )
+
+
+@app.route("/atividades/<slug>")
+@login_requerido
+def licao_detalhe(slug):
+    db = get_db()
+    licao = db.execute("SELECT * FROM licoes WHERE slug = ?", (slug,)).fetchone()
+    if licao is None:
+        abort(404)
+
+    missoes = json.loads(licao["missoes"])
+    prog = get_progresso(session["uid"], licao["id"])
+    feitas = json.loads(prog["missoes_feitas"])
+    xp_total = sum(m.get("xp", 0) for m in missoes)
+
+    return render_template(
+        "atividades/licao.html",
+        licao=licao,
+        missoes=missoes,
+        leitura_ok=bool(prog["leitura_ok"]),
+        missoes_feitas=feitas,
+        xp_total=xp_total,
+        concluida=bool(prog["concluida"]),
+        perfil=get_perfil(),
+    )
+
+
+@app.route("/atividades/<slug>/leitura", methods=["POST"])
+@login_requerido
+def licao_leitura(slug):
+    db = get_db()
+    licao = db.execute("SELECT * FROM licoes WHERE slug = ?", (slug,)).fetchone()
+    if licao is None:
+        abort(404)
+
+    get_progresso(session["uid"], licao["id"])
+    db.execute(
+        "UPDATE licao_progresso SET leitura_ok = 1, atualizado_em = datetime('now') "
+        "WHERE usuario_id = ? AND licao_id = ?",
+        (session["uid"], licao["id"]),
+    )
+    db.commit()
+    return redirect(url_for("licao_detalhe", slug=slug) + "#lab")
+
+
+@app.route("/atividades/<slug>/progresso", methods=["POST"])
+@login_requerido
+def licao_progresso(slug):
+    db = get_db()
+    licao = db.execute("SELECT * FROM licoes WHERE slug = ?", (slug,)).fetchone()
+    if licao is None:
+        abort(404)
+
+    dados = request.get_json(silent=True) or {}
+    missao_id = str(dados.get("missao", ""))
+
+    missoes = json.loads(licao["missoes"])
+    validas = {m["id"]: m for m in missoes}
+    if missao_id not in validas:
+        return {"ok": False, "erro": "missão inválida"}, 400
+
+    prog = get_progresso(session["uid"], licao["id"])
+    feitas = json.loads(prog["missoes_feitas"])
+    if missao_id not in feitas:
+        feitas.append(missao_id)
+
+    concluida = len(feitas) == len(missoes)
+    db.execute(
+        "UPDATE licao_progresso SET missoes_feitas = ?, concluida = ?, "
+        "atualizado_em = datetime('now') WHERE usuario_id = ? AND licao_id = ?",
+        (json.dumps(feitas), 1 if concluida else 0, session["uid"], licao["id"]),
+    )
+    db.commit()
+
+    xp_ganho = sum(m.get("xp", 0) for m in missoes if m["id"] in feitas)
+    xp_total = sum(m.get("xp", 0) for m in missoes)
+    return {
+        "ok": True,
+        "missoes_feitas": feitas,
+        "xp_ganho": xp_ganho,
+        "xp_total": xp_total,
+        "concluida": concluida,
+    }
 
 
 # ---------------------------------------------------------------------------
