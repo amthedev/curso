@@ -2,6 +2,11 @@
    Atividades com IA — formulário de geração, overlay de loading e resolução.
    JS puro, sem build. Todo texto vindo da IA entra no DOM escapado
    (textContent ou esc()) — nunca innerHTML cru.
+
+   Tipos de questão: multipla, vf, aberta, comando, ordenar e os interativos
+   associar (ligar pares), lacuna (completar o texto) e linha (caça ao erro).
+   Cada tipo interativo é um "widget" (q.w) com ler() -> resposta e
+   aplicar(resultado, animar) -> pinta o gabarito.
    ========================================================================== */
 (function () {
   "use strict";
@@ -25,6 +30,18 @@
   }
   function icone(nome) {
     return '<svg class="ia-ico" aria-hidden="true"><use href="#ia-i-' + nome + '"/></svg>';
+  }
+  var TIPOS_INTERATIVOS = { associar: 1, lacuna: 1, linha: 1 };
+  var TODOS_OS_TIPOS = ["multipla", "vf", "aberta", "comando", "ordenar", "associar", "lacuna", "linha"];
+  function el(tag, classe, texto) {
+    var e = document.createElement(tag);
+    if (classe) e.className = classe;
+    if (texto != null) e.textContent = texto;
+    return e;
+  }
+  /* só aceita caminho relativo do próprio site (vem do servidor, mas não custa validar) */
+  function urlLocal(u, padrao) {
+    return (typeof u === "string" && /^\/(?![\/\\])[^\s]*$/.test(u)) ? u : padrao;
   }
   function lerStorage(chave) { try { return window.localStorage.getItem(chave); } catch (e) { return null; } }
   function gravarStorage(chave, v) { try { window.localStorage.setItem(chave, v); } catch (e) { /* sem storage */ } }
@@ -260,6 +277,11 @@
     var artigos = $$(".ia-q");
     var modo = lerStorage("ia-modo") === "todas" ? "todas" : "uma";
     var atual = 0;
+    var plano = D.origem === "cronograma";   /* missão do plano diário: nada de "IA" na tela */
+    if (plano) {
+      var navIa = $(".nav-ia");
+      if (navIa) { navIa.classList.remove("active"); navIa.removeAttribute("aria-current"); }
+    }
 
     /* resumo: fallback se o main.js não renderizou o markdown */
     var corpo = $("#postBody");
@@ -386,6 +408,8 @@
           li.classList.toggle("is-errada", certa[i] !== li.getAttribute("data-pid"));
           $(".ia-passo-n", li).textContent = String(i + 1);
         });
+      } else if (q.w) {
+        q.w.aplicar(res, animar);
       }
 
       var xpEl = $(".ia-q-xp", art);
@@ -395,7 +419,22 @@
       $(".ia-fb-wrap", art).innerHTML = htmlFeedback(q, res);
       var fb = $(".ia-fb", art);
       if (animar && fb && !reduzMovimento) fb.classList.add("is-anim");
+      if (animar) efeitoResposta(art, res);
       atualizarNav();
+    }
+
+    /* microinteração: brilho no acerto, tremida no erro, "+XP" subindo do feedback */
+    function efeitoResposta(art, res) {
+      if (!reduzMovimento) {
+        var cls = "ia-fx-" + res.status;
+        art.classList.remove("ia-fx-certa", "ia-fx-errada", "ia-fx-parcial");
+        void art.offsetWidth;
+        art.classList.add(cls);
+        setTimeout(function () { art.classList.remove(cls); }, 1100);
+      }
+      if (res.xp > 0 && typeof window.mostrarXP === "function") {
+        setTimeout(function () { window.mostrarXP(res.xp, $(".ia-fb-xp", art)); }, reduzMovimento ? 0 : 250);
+      }
     }
 
     function htmlFeedback(q, res) {
@@ -413,7 +452,9 @@
       }
       if (res.feedback) h += '<p class="ia-fb-msg">' + fmt(res.feedback) + "</p>";
 
-      if (res.status !== "certa" || q.tipo === "aberta" || q.tipo === "comando") {
+      if (TIPOS_INTERATIVOS[q.tipo]) h += detalheInterativo(q, res);
+
+      if (!TIPOS_INTERATIVOS[q.tipo] && (res.status !== "certa" || q.tipo === "aberta" || q.tipo === "comando")) {
         var gab = "";
         if (q.tipo === "multipla") gab = fmt(q.alternativas[rev.correta]);
         else if (q.tipo === "vf") gab = rev.correta ? "Verdadeiro" : "Falso";
@@ -441,8 +482,50 @@
       return h + "</div>";
     }
 
+    /* detalhe por parte (pares / lacunas / linhas) no cartão de feedback */
+    function detalheInterativo(q, res) {
+      var rev = res.revelar || {}, resp = res.resposta || [], itens = [], titulo = "";
+      if (q.tipo === "associar") {
+        titulo = "Seus pares";
+        (q.termos || []).forEach(function (t, i) {
+          var ok = !!(rev.acertos && rev.acertos[i]);
+          var certa = q.definicoes[(rev.pares_corretos || [])[i]], sua = q.definicoes[resp[i]];
+          itens.push([ok ? "ok" : "no", "<strong>" + fmt(t) + "</strong> → " + (ok ? fmt(certa)
+            : "<s>" + fmt(sua) + "</s><em>Certo: " + fmt(certa) + "</em>")]);
+        });
+      } else if (q.tipo === "lacuna") {
+        titulo = "Lacunas";
+        (rev.aceitas || []).forEach(function (aceitas, i) {
+          var ok = !!(rev.acertos && rev.acertos[i]);
+          var dig = resp[i] ? "<code>" + esc(resp[i]) + "</code>" : "<em>em branco</em>";
+          var lista = aceitas.map(function (a) { return "<code>" + esc(a) + "</code>"; }).join(" ");
+          itens.push([ok ? "ok" : "no", "<strong>Lacuna " + (i + 1) + ":</strong> " + (ok ? dig
+            : "<s>" + dig + "</s><em>Aceito: " + lista + "</em>")]);
+        });
+      } else if (q.tipo === "linha") {
+        titulo = "Linhas suspeitas";
+        var escolhidas = {};
+        resp.forEach(function (x) { escolhidas[x] = true; });
+        (rev.corretas || []).forEach(function (nn) {
+          var ok = !!escolhidas[nn];
+          itens.push([ok ? "ok" : "warn", "<strong>Linha " + nn + "</strong> <code>" + esc(String((q.trecho || [])[nn - 1] || "").trim()) + "</code>" +
+            (ok ? "" : '<em class="w">Você não marcou essa</em>')]);
+        });
+        (rev.falsos || []).forEach(function (nn) {
+          itens.push(["no", "<strong>Linha " + nn + "</strong> <code>" + esc(String((q.trecho || [])[nn - 1] || "").trim()) + "</code>" +
+            '<em class="d">Essa era normal</em>']);
+        });
+      }
+      if (!itens.length) return "";
+      return '<div class="ia-fb-gab"><span>' + titulo + '</span><ul class="ia-fb-itens">' + itens.map(function (it) {
+        return '<li class="' + it[0] + '"><span class="ia-fb-ic">' + icone(it[0] === "ok" ? "check" : (it[0] === "warn" ? "alert" : "x")) +
+          "</span><div>" + it[1] + "</div></li>";
+      }).join("") + "</ul></div>";
+    }
+
     /* ── envio de resposta ── */
     function lerResposta(q, form) {
+      if (q.w) return q.w.ler();
       if (q.tipo === "multipla") {
         var m = form.querySelector('input[type="radio"]:checked');
         if (!m) throw new Error("Escolha uma alternativa.");
@@ -473,21 +556,23 @@
       try { resposta = lerResposta(q, form); } catch (e) {
         erro.textContent = e.message; erro.hidden = false; return;
       }
+      var rotuloBtn = $("span", btn).textContent;
       btn.disabled = true;
       btn.classList.add("is-loading");
-      $("span", btn).textContent = q.tipo === "aberta" ? "Corrigindo com IA…" : "Corrigindo…";
+      $("span", btn).textContent = (q.tipo === "aberta" && !plano) ? "Corrigindo com IA…" : "Corrigindo…";
 
       postJSON(D.urls.responder, { questao_id: q.id, resposta: resposta }).then(function (d) {
         aplicarResultado(q, d.resultado, true);
         atualizarProgresso(d.progresso);
         if (d.final) {
           D.final = d.final;
+          D.extra = d.cronograma || null;
           setTimeout(function () { mostrarFinal(true); }, reduzMovimento ? 0 : 900);
         } else {
           var prox = $(".ia-q-prox", art);
           if (prox && modo === "uma") prox.focus({ preventScroll: true });
         }
-        if (d.gamificacao) toastGamificacao(d.gamificacao);
+        if (d.gamificacao) gamificar(d.gamificacao, d.cronograma);
       }).catch(function (e) {
         if (e.status === 409 && e.dados && e.dados.resultado) {
           aplicarResultado(q, e.dados.resultado, false);
@@ -495,7 +580,7 @@
         }
         btn.disabled = false;
         btn.classList.remove("is-loading");
-        $("span", btn).textContent = "Confirmar resposta";
+        $("span", btn).textContent = rotuloBtn;
         erro.textContent = e.message;
         erro.hidden = false;
       });
@@ -563,10 +648,341 @@
       });
     }
 
+    /* ══ TIPOS INTERATIVOS ═════════════════════════════════════════════════ */
+
+    /* ── associar: termo → definição, uma cor por par, linha ligando os dois ── */
+    function initAssociar(q, art) {
+      var raiz = $("[data-assoc]", art);
+      if (!raiz) return null;
+      var board = $(".ia-assoc-board", raiz), svg = $(".ia-assoc-lines", raiz);
+      var termos = $$(".ia-assoc-t", raiz), defs = $$(".ia-assoc-d", raiz);
+      var n = termos.length;
+      var contador = $("[data-assoc-n]", raiz), limpar = $("[data-assoc-limpar]", raiz);
+      var aviso = $("[data-assoc-status]", raiz);
+      var NS = "http://www.w3.org/2000/svg";
+      var st = { par: [], slot: [], pend: null, travado: false, res: null };
+      var linhas = {};
+      for (var k = 0; k < n; k++) { st.par.push(-1); st.slot.push(-1); }
+
+      function txt(lado, i) { return $(".ia-assoc-txt", (lado === "t" ? termos : defs)[i]).textContent; }
+      function falar(m) { aviso.textContent = m; }
+      function termoDaDef(j) { return st.par.indexOf(j); }
+      function formados() { return st.par.filter(function (j) { return j >= 0; }).length; }
+      function slotLivre() {
+        var usados = {};
+        st.slot.forEach(function (x) { if (x >= 0) usados[x] = true; });
+        for (var c = 0; c < 5; c++) if (!usados[c]) return c;
+        return 0;
+      }
+
+      function estado(b, lado, i) {
+        var t = lado === "t" ? i : termoDaDef(i);          /* índice do termo do par (ou -1) */
+        var par = t >= 0 && st.par[t] >= 0;
+        var sel = !!st.pend && st.pend.lado === lado && st.pend.i === i;
+        b.classList.toggle("is-par", par);
+        b.classList.toggle("is-sel", sel);
+        b.setAttribute("aria-pressed", sel ? "true" : "false");
+        if (par) b.style.setProperty("--pc", "var(--ia-pc" + st.slot[t] + ")"); else b.style.removeProperty("--pc");
+        if (!st.res) $(".ia-assoc-pin", b).textContent = par ? String(st.slot[t] + 1) : "";
+        var rotulo = (lado === "t" ? "Termo: " : "Definição: ") + txt(lado, i);
+        if (par && !st.res) rotulo += ". Ligado a: " + (lado === "t" ? txt("d", st.par[t]) : txt("t", t)) + ". Ative para desfazer.";
+        b.setAttribute("aria-label", rotulo);
+      }
+
+      function pintar() {
+        raiz.setAttribute("data-pend", st.pend ? st.pend.lado : "");
+        termos.forEach(function (b, i) { estado(b, "t", i); });
+        defs.forEach(function (b, j) { estado(b, "d", j); });
+        var f = formados();
+        contador.textContent = String(f);
+        raiz.classList.toggle("is-completo", f === n);
+        limpar.hidden = st.travado || f === 0;
+        desenhar();
+      }
+
+      /* linhas (só no layout em duas colunas) */
+      function visivel() { return board.offsetWidth > 0 && window.getComputedStyle(svg).display !== "none"; }
+      function ponto(elem, borda) {
+        var rb = board.getBoundingClientRect(), r = elem.getBoundingClientRect();
+        return { x: (borda === "d" ? r.right : r.left) - rb.left, y: r.top - rb.top + r.height / 2 };
+      }
+      function curva(a, b) {
+        var dx = Math.max(20, (b.x - a.x) * 0.5);
+        return "M" + a.x.toFixed(1) + " " + a.y.toFixed(1) +
+          " C" + (a.x + dx).toFixed(1) + " " + a.y.toFixed(1) + " " + (b.x - dx).toFixed(1) + " " + b.y.toFixed(1) +
+          " " + b.x.toFixed(1) + " " + b.y.toFixed(1);
+      }
+      function criarLinha(id) {
+        var g = document.createElementNS(NS, "g");
+        var path = document.createElementNS(NS, "path");
+        var c1 = document.createElementNS(NS, "circle"), c2 = document.createElementNS(NS, "circle");
+        c1.setAttribute("r", "4"); c2.setAttribute("r", "4");
+        g.appendChild(path); g.appendChild(c1); g.appendChild(c2);
+        svg.appendChild(g);
+        return { g: g, path: path, c1: c1, c2: c2, novo: true };
+      }
+      function desenhar() {
+        if (!visivel()) return;
+        svg.setAttribute("viewBox", "0 0 " + board.offsetWidth + " " + board.offsetHeight);
+        var alvo = {};
+        st.par.forEach(function (j, i) {
+          if (j < 0) return;
+          var ok = st.res ? st.res.acertos[i] : null;
+          alvo["p" + i] = { a: ponto(termos[i], "d"), b: ponto(defs[j], "e"), cls: st.res ? (ok ? "ok" : "no") : "par", slot: st.slot[i] };
+          if (st.res && !ok && typeof st.res.corretos[i] === "number") {
+            alvo["c" + i] = { a: ponto(termos[i], "d"), b: ponto(defs[st.res.corretos[i]], "e"), cls: "gab", slot: st.slot[i] };
+          }
+        });
+        Object.keys(linhas).forEach(function (id) {
+          if (!alvo[id]) { svg.removeChild(linhas[id].g); delete linhas[id]; }
+        });
+        Object.keys(alvo).forEach(function (id) {
+          var t = alvo[id], L = linhas[id];
+          if (!L) L = linhas[id] = criarLinha(id);
+          L.g.setAttribute("class", "ia-line is-" + t.cls);
+          L.g.style.setProperty("--pc", "var(--ia-pc" + t.slot + ")");
+          L.path.setAttribute("d", curva(t.a, t.b));
+          L.c1.setAttribute("cx", t.a.x.toFixed(1)); L.c1.setAttribute("cy", t.a.y.toFixed(1));
+          L.c2.setAttribute("cx", t.b.x.toFixed(1)); L.c2.setAttribute("cy", t.b.y.toFixed(1));
+          if (L.novo) {
+            L.novo = false;
+            if (!reduzMovimento && t.cls !== "no" && t.cls !== "gab" && L.path.getTotalLength) {
+              var len = L.path.getTotalLength();
+              L.path.style.strokeDasharray = len;
+              L.path.style.strokeDashoffset = len;
+              L.path.getBoundingClientRect();
+              L.path.style.transition = "stroke-dashoffset .4s cubic-bezier(.2,.8,.2,1)";
+              L.path.style.strokeDashoffset = "0";
+              setTimeout(function (p) {
+                return function () { p.style.strokeDasharray = ""; p.style.strokeDashoffset = ""; p.style.transition = ""; };
+              }(L.path), 460);
+            }
+          }
+        });
+      }
+
+      function pop(elem) {
+        if (reduzMovimento) return;
+        elem.classList.remove("ia-pop"); void elem.offsetWidth; elem.classList.add("ia-pop");
+      }
+
+      function clique(lado, i, teclado) {
+        if (st.travado) return;
+        var t = lado === "t" ? i : termoDaDef(i);
+        if (t >= 0 && st.par[t] >= 0) {                         /* já está num par: desfaz */
+          var j = st.par[t];
+          st.par[t] = -1; st.slot[t] = -1;
+          pintar();
+          falar("Par desfeito: " + txt("t", t) + " e " + txt("d", j) + ".");
+          return;
+        }
+        if (!st.pend || st.pend.lado === lado) {              /* escolhe (ou troca/cancela) o item pendente */
+          var mesmo = st.pend && st.pend.i === i;
+          st.pend = mesmo ? null : { lado: lado, i: i };
+          pintar();
+          falar(st.pend ? (lado === "t" ? "Termo escolhido: " : "Definição escolhida: ") + txt(lado, i) +
+            ". Agora escolha " + (lado === "t" ? "a definição." : "o termo.") : "Seleção cancelada.");
+          return;
+        }
+        var ti = lado === "t" ? i : st.pend.i, di = lado === "d" ? i : st.pend.i;
+        st.par[ti] = di; st.slot[ti] = slotLivre(); st.pend = null;
+        pintar();
+        pop(termos[ti]); pop(defs[di]);
+        var f = formados();
+        falar("Par formado: " + txt("t", ti) + " com " + txt("d", di) + ". " +
+          (f === n ? "Todos os pares formados. Use o botão Conferir." : f + " de " + n + "."));
+        if (teclado && f < n) {
+          var prox = termos.filter(function (_, x) { return st.par[x] < 0; })[0];
+          if (prox) prox.focus({ preventScroll: true });
+        }
+      }
+
+      raiz.addEventListener("click", function (ev) {
+        var b = ev.target.closest(".ia-assoc-item");
+        if (!b || b.disabled || !raiz.contains(b)) return;
+        clique(b.getAttribute("data-lado"), parseInt(b.getAttribute("data-i"), 10), ev.detail === 0);
+      });
+      raiz.addEventListener("keydown", function (ev) {
+        if (ev.key === "Escape" && st.pend) { st.pend = null; pintar(); falar("Seleção cancelada."); }
+      });
+      limpar.addEventListener("click", function () {
+        for (var x = 0; x < n; x++) { st.par[x] = -1; st.slot[x] = -1; }
+        st.pend = null;
+        pintar();
+        falar("Todos os pares foram desfeitos.");
+      });
+
+      if (typeof ResizeObserver !== "undefined") new ResizeObserver(function () { desenhar(); }).observe(board);
+      else window.addEventListener("resize", desenhar);
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { desenhar(); });
+      pintar();
+
+      return {
+        ler: function () {
+          var falta = n - formados();
+          if (falta > 0) {
+            throw new Error(falta === n ? "Ligue cada termo à sua definição antes de conferir."
+              : "Faltam " + falta + (falta === 1 ? " par" : " pares") + " — ligue todos os termos antes de conferir.");
+          }
+          return st.par.slice();
+        },
+        aplicar: function (res) {
+          var rev = res.revelar || {}, resp = res.resposta || [];
+          var corretos = rev.pares_corretos || [];
+          st.travado = true; st.pend = null; st.res = null;
+          for (var x = 0; x < n; x++) { st.par[x] = typeof resp[x] === "number" ? resp[x] : -1; st.slot[x] = x % 5; }
+          var acertos = rev.acertos || termos.map(function (_, x) { return corretos[x] === st.par[x]; });
+          st.res = { acertos: acertos, corretos: corretos };
+          raiz.classList.add("is-resp");
+          pintar();
+          termos.forEach(function (b, x) {
+            var ok = !!acertos[x];
+            [b, defs[st.par[x]]].forEach(function (alvo) {
+              if (!alvo) return;
+              alvo.classList.add(ok ? "is-certa" : "is-errada");
+              $(".ia-assoc-pin", alvo).textContent = ok ? "✓" : "✕";
+            });
+          });
+          desenhar();
+        }
+      };
+    }
+
+    /* ── lacuna: campos dentro do texto; Enter passa para a próxima e confere no fim ── */
+    function initLacuna(q, art) {
+      var raiz = $("[data-lacuna]", art);
+      if (!raiz) return null;
+      var campos = $$(".ia-gap", raiz);
+      var form = $(".ia-q-form", art);
+      function ajustar(inp) { inp.style.width = Math.max(8, Math.min(inp.value.length + 3, 34)) + "ch"; }
+      function tremer(inp) {
+        if (reduzMovimento) return;
+        inp.classList.remove("ia-shake"); void inp.offsetWidth; inp.classList.add("ia-shake");
+      }
+      campos.forEach(function (inp) {
+        ajustar(inp);
+        inp.addEventListener("input", function () { ajustar(inp); inp.classList.remove("is-vazio"); });
+        inp.addEventListener("keydown", function (ev) {
+          if (ev.key !== "Enter" || ev.isComposing) return;
+          ev.preventDefault();
+          var i = campos.indexOf(inp);
+          var prox = campos.slice(i + 1).concat(campos.slice(0, i)).filter(function (c) { return !c.value.trim(); })[0];
+          if (prox) { prox.focus(); return; }
+          if (form.requestSubmit) form.requestSubmit();
+          else form.dispatchEvent(new Event("submit", { cancelable: true }));
+        });
+      });
+      return {
+        ler: function () {
+          var valores = campos.map(function (c) { return c.value.trim(); });
+          if (!valores.some(Boolean)) {
+            campos.forEach(tremer);
+            campos[0].focus();
+            throw new Error("Preencha as lacunas antes de conferir.");
+          }
+          return valores;
+        },
+        aplicar: function (res) {
+          var rev = res.revelar || {}, resp = res.resposta || [], aceitas = rev.aceitas || [], ac = rev.acertos || [];
+          campos.forEach(function (inp, i) {
+            inp.value = resp[i] || "";
+            if (!inp.value) inp.placeholder = "—";
+            ajustar(inp);
+            inp.disabled = true;
+            var ok = !!ac[i];
+            inp.classList.add(ok ? "is-certa" : "is-errada");
+            if (!ok && aceitas[i] && aceitas[i].length) {
+              var fix = el("span", "ia-gap-fix");
+              fix.appendChild(el("i", "", "→"));
+              fix.appendChild(document.createTextNode(aceitas[i][0]));
+              inp.parentNode.appendChild(fix);
+            }
+          });
+        }
+      };
+    }
+
+    /* ── linha (caça ao erro): clicar alterna a marcação da linha ── */
+    function initLinha(q, art) {
+      var raiz = $("[data-linha]", art);
+      if (!raiz) return null;
+      var linhas = $$(".ia-code-line", raiz);
+      var cont = $("[data-linha-count]", raiz), aviso = $("[data-linha-status]", art);
+      var marc = {};
+      function total() { return Object.keys(marc).length; }
+      function rotulo() {
+        var t = total();
+        return t ? t + (t === 1 ? " linha marcada" : " linhas marcadas") : "nenhuma linha marcada";
+      }
+      raiz.addEventListener("click", function (ev) {
+        var b = ev.target.closest(".ia-code-line");
+        if (!b || b.disabled) return;
+        var nn = parseInt(b.getAttribute("data-n"), 10);
+        if (marc[nn]) delete marc[nn]; else marc[nn] = true;
+        var on = !!marc[nn];
+        b.classList.toggle("is-sel", on);
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+        cont.textContent = rotulo();
+        aviso.textContent = "Linha " + nn + (on ? " marcada. " : " desmarcada. ") + rotulo() + ".";
+        if (on && !reduzMovimento) { b.classList.remove("ia-pop"); void b.offsetWidth; b.classList.add("ia-pop"); }
+      });
+      raiz.addEventListener("keydown", function (ev) {
+        if (ev.key !== "ArrowDown" && ev.key !== "ArrowUp") return;
+        var i = linhas.indexOf(document.activeElement);
+        if (i < 0) return;
+        ev.preventDefault();
+        var alvo = linhas[Math.max(0, Math.min(linhas.length - 1, i + (ev.key === "ArrowDown" ? 1 : -1)))];
+        if (alvo) alvo.focus();
+      });
+      return {
+        ler: function () {
+          var lista = Object.keys(marc).map(Number).sort(function (a, b) { return a - b; });
+          if (!lista.length) throw new Error("Clique em pelo menos uma linha suspeita.");
+          return lista;
+        },
+        aplicar: function (res) {
+          var rev = res.revelar || {}, escolhidas = {};
+          (res.resposta || []).forEach(function (x) { escolhidas[x] = true; });
+          var acertos = rev.acertos || [], falsos = rev.falsos || [], esq = rev.esquecidas || [];
+          raiz.classList.add("is-resp");
+          linhas.forEach(function (b) {
+            var nn = parseInt(b.getAttribute("data-n"), 10);
+            var info = null;
+            if (acertos.indexOf(nn) >= 0) info = ["is-certa", "✓", "suspeita"];
+            else if (falsos.indexOf(nn) >= 0) info = ["is-errada", "✕", "era normal"];
+            else if (esq.indexOf(nn) >= 0) info = ["is-esquecida", "!", "faltou"];
+            b.classList.toggle("is-sel", !!escolhidas[nn]);
+            b.setAttribute("aria-pressed", escolhidas[nn] ? "true" : "false");
+            if (!info) return;
+            b.classList.add(info[0]);
+            var lm = $(".ia-lm", b);
+            lm.textContent = "";
+            lm.appendChild(el("b", "", info[1]));
+            lm.appendChild(el("span", "ia-lm-t", info[2]));
+            b.appendChild(el("span", "ia-sr", " — " + info[2]));
+          });
+          var certas = acertos.length + esq.length;
+          cont.textContent = acertos.length + " de " + certas + (certas === 1 ? " suspeita achada" : " suspeitas achadas");
+          var leg = el("div", "ia-code-legenda");
+          [["is-certa", "Acertou", acertos.length], ["is-errada", "Marcou sem precisar", falsos.length],
+           ["is-esquecida", "Esqueceu", esq.length]].forEach(function (it) {
+            var li = el("span", "ia-leg " + it[0]);
+            li.appendChild(el("i", ""));
+            li.appendChild(document.createTextNode(it[1] + " (" + it[2] + ")"));
+            leg.appendChild(li);
+          });
+          raiz.appendChild(leg);
+        }
+      };
+    }
+
     /* ── liga cada questão ── */
     artigos.forEach(function (art) {
       var q = porId[art.getAttribute("data-qid")];
       var form = $(".ia-q-form", art);
+      if (q.tipo === "associar") q.w = initAssociar(q, art);
+      else if (q.tipo === "lacuna") q.w = initLacuna(q, art);
+      else if (q.tipo === "linha") q.w = initLinha(q, art);
       form.addEventListener("submit", function (ev) { ev.preventDefault(); if (!q.resultado) enviar(q, art); });
       form.addEventListener("change", function () { $(".ia-q-erro", art).hidden = true; });
 
@@ -601,6 +1017,12 @@
 
     /* ── resultado final ── */
     function mensagemNota(n) {
+      if (plano) {
+        if (n >= 90) return ["Mandou muito bem!", "Esse assunto está dominado — o plano vai te trazer desafios maiores."];
+        if (n >= 70) return ["Bom trabalho!", "O que escapou volta como revisão nos próximos dias, na dose certa."];
+        if (n >= 50) return ["Quase lá!", "Releia as explicações abaixo — o plano vai reforçar esses pontos."];
+        return ["Bora revisar?", "Errar faz parte: o plano se adapta e traz esses pontos de volta para fixar."];
+      }
       if (n >= 90) return ["Mandou muito bem!", "Domínio total do tema. Que tal subir o nível?"];
       if (n >= 70) return ["Bom trabalho!", "Base sólida — revise os pontos abaixo para fechar as lacunas."];
       if (n >= 50) return ["Quase lá!", "Releia o resumo e as explicações das questões que escaparam."];
@@ -614,6 +1036,8 @@
       var circ = 2 * Math.PI * 52;
       var classe = f.nota >= 70 ? "alta" : (f.nota >= 40 ? "media" : "baixa");
       var labelMais = f.ja_no_maximo ? "Outra no nível Avançado" : "Gerar mais difícil (" + f.proximo_nivel + ")";
+      var extra = plano ? (D.extra || {}) : null;
+      var urlPlano = urlLocal(extra && extra.url, urlLocal(D.urls.cronograma, "/cronograma/"));
 
       var h = '<div class="ia-final-top">' +
         '<div class="ia-score is-' + classe + '" role="img" aria-label="Nota ' + f.nota + ' por cento">' +
@@ -623,7 +1047,7 @@
           '<span class="ia-score-txt"><strong>' + f.nota + "<small>%</small></strong><span>nota</span></span>" +
         "</div>" +
         '<div class="ia-final-txt">' +
-          '<span class="ia-final-kicker">' + icone("trophy") + " Atividade concluída</span>" +
+          '<span class="ia-final-kicker">' + icone("trophy") + (plano ? " Missão concluída" : " Atividade concluída") + "</span>" +
           '<h2 id="iaFinalTitulo">' + esc(m[0]) + "</h2>" +
           "<p>" + esc(m[1]) + "</p>" +
           '<ul class="ia-final-stats" role="list">' +
@@ -632,11 +1056,12 @@
             "<li><b>" + f.erradas.length + "</b><span>para revisar</span></li>" +
           "</ul>" +
         "</div></div>" +
+        (plano ? blocoPlano(extra, urlPlano) :
         '<div class="ia-final-acoes">' +
           '<button type="button" class="btn btn-primary" data-final="mesmo">' + icone("sparkles") + " Gerar outra sobre o mesmo tema</button>" +
           '<button type="button" class="btn btn-outline" data-final="dificil">' + icone("flame") + " " + esc(labelMais) + "</button>" +
           '<button type="button" class="btn btn-ghost" data-final="refazer">' + icone("refresh") + " Refazer esta</button>" +
-        "</div>" +
+        "</div>") +
         '<p class="ia-final-erro" role="alert" hidden></p>';
 
       if (f.erradas.length) {
@@ -660,7 +1085,7 @@
 
       sec.innerHTML = h;
       sec.hidden = false;
-      if (!D.ia_disponivel) {
+      if (!plano && !D.ia_disponivel) {
         $$('[data-final="mesmo"], [data-final="dificil"]', sec).forEach(function (b) {
           b.disabled = true; b.title = "A IA não está configurada no servidor";
         });
@@ -683,8 +1108,26 @@
         requestAnimationFrame(function () {
           requestAnimationFrame(function () { val.style.strokeDashoffset = (circ * (1 - f.nota / 100)).toFixed(2); });
         });
-        if (f.nota >= 70) confete();
+        if (f.nota >= 70 || (extra && extra.dia_completo)) confete();
       }
+    }
+
+    /* fim da missão do plano: volta ao cronograma (e ao baú, se o dia fechou) */
+    function blocoPlano(extra, url) {
+      var h = "";
+      if (extra && extra.dia_completo) {
+        h += '<div class="ia-dia-completo" role="status">' + icone("trophy") +
+          "<p><strong>Plano de hoje completo!</strong> " +
+          (extra.bau_disponivel ? "Seu baú do dia está esperando por você." : "Volte amanhã para a próxima rodada.") + "</p></div>";
+      }
+      h += '<div class="ia-final-acoes">';
+      if (extra && extra.bau_disponivel) {
+        h += '<a class="btn btn-primary ia-btn-bau" href="' + esc(url) + '#bau">' + icone("gift") + " Abrir o baú do dia</a>" +
+          '<a class="btn btn-outline" href="' + esc(url) + '">' + icone("calendar") + " Voltar ao cronograma</a>";
+      } else {
+        h += '<a class="btn btn-primary" href="' + esc(url) + '">' + icone("calendar") + " Voltar ao cronograma</a>";
+      }
+      return h + "</div>";
     }
 
     function acaoFinal(acao, botao) {
@@ -702,7 +1145,7 @@
         tema: c.tema,
         nivel: acao === "dificil" ? D.final.proximo_nivel : c.nivel,
         quantidade: c.quantidade >= 15 ? 15 : (c.quantidade >= 10 ? 10 : (c.quantidade >= 8 ? 8 : 5)),
-        tipos: c.tipos && c.tipos.length ? c.tipos : ["multipla", "vf", "aberta", "comando", "ordenar"],
+        tipos: c.tipos && c.tipos.length ? c.tipos : TODOS_OS_TIPOS,
         foco: c.foco || "misto",
         base_id: c.base_id
       };
@@ -734,6 +1177,30 @@
       }
       document.body.appendChild(box);
       setTimeout(function () { box.remove(); }, 4600);
+    }
+
+    /* XP/nível/conquistas: usa o painel global (gamificacao.js) quando existe */
+    function gamificar(g, extra) {
+      var dados = g || {};
+      if (plano) {
+        /* conquistas "de IA" não fazem sentido no plano: não anuncia (continuam no painel) */
+        dados = {
+          xp_ganho_agora: g.xp_ganho_agora, xp_total_usuario: g.xp_total_usuario, nivel: g.nivel,
+          subiu_nivel: g.subiu_nivel,
+          novas_conquistas: (g.novas_conquistas || []).filter(function (c) { return !/^ia_/.test(c.codigo || ""); })
+        };
+      }
+      mostrarGami(dados, 1300);
+      /* bônus do dia / conquistas do plano vindos do cronograma */
+      if (extra && (extra.xp_dia > 0 || (extra.novas_conquistas && extra.novas_conquistas.length))) {
+        mostrarGami({ xp_ganho_agora: extra.xp_dia || 0, novas_conquistas: extra.novas_conquistas || [] }, 2800);
+      }
+    }
+    function mostrarGami(dados, atraso) {
+      setTimeout(function () {
+        if (typeof window.gamificacaoProcessar === "function") window.gamificacaoProcessar(dados);
+        else toastGamificacao(dados);
+      }, reduzMovimento ? 0 : atraso);
     }
 
     function toastGamificacao(g) {

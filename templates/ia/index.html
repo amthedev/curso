@@ -12,6 +12,9 @@
   'aberta': 'Resposta curta, corrigida pela IA',
   'comando': 'Digite o comando que resolve',
   'ordenar': 'Coloque os passos em ordem',
+  'associar': 'Ligue cada termo à definição',
+  'lacuna': 'Preencha as lacunas do texto',
+  'linha': 'Ache a linha suspeita no log/código',
 } %}
 {% set limite_estourado = (not uso.ilimitado) and uso.restantes == 0 %}
 {# Modo "Praticar este post": tema/quantidade/tipos/foco ficam fixos (valem para o cache de todos). #}
@@ -42,7 +45,7 @@
       </p>
       {% endif %}
       <ul class="ia-hero-pills" role="list">
-        <li><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-misto"/></svg> 5 tipos de questão</li>
+        <li><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-misto"/></svg> 8 tipos de questão</li>
         <li><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-check"/></svg> Correção instantânea</li>
         <li><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-bolt"/></svg> XP no seu perfil</li>
       </ul>

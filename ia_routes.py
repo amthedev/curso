@@ -15,6 +15,13 @@ Rotas
 
 O gabarito nunca vai para o HTML/JS antes da resposta: o navegador só recebe
 `ia_service.publica(q)`; a explicação/resposta certa volta no JSON da correção.
+
+Origem das atividades (`ia_atividades.origem`): 'livre' (gerador), 'post' ("praticar este post")
+e 'cronograma' (plano diário do aluno — fica fora do histórico e do limite diário do gerador;
+`responder` avisa o módulo `cronograma` por ganchos opcionais, ver `_gancho_cronograma`).
+
+API pública para outros módulos: inserir_atividade, checar_requisicao_json, registrar_uso,
+erro_json, HOJE_SQL, geracoes_hoje.
 """
 from __future__ import annotations
 
@@ -27,7 +34,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
-from flask import Blueprint, abort, jsonify, render_template, request, session, url_for
+from flask import Blueprint, abort, current_app, jsonify, render_template, request, session, url_for
 from markupsafe import Markup, escape
 
 import ia_service as ia
@@ -84,7 +91,10 @@ def init_ia_db(db: sqlite3.Connection):
             dicas_usadas TEXT NOT NULL DEFAULT '[]',
             tentativas INTEGER NOT NULL DEFAULT 1,
             criado_em TEXT NOT NULL DEFAULT (datetime('now')),
-            concluida_em TEXT
+            concluida_em TEXT,
+            origem TEXT NOT NULL DEFAULT 'livre',
+            plano_dia TEXT,
+            topicos TEXT NOT NULL DEFAULT '[]'
         );
         CREATE INDEX IF NOT EXISTS idx_ia_atividades_usuario
             ON ia_atividades (usuario_id, id DESC);
@@ -134,10 +144,25 @@ def init_ia_db(db: sqlite3.Connection):
         );
         """
     )
+    # Bancos antigos: colunas do cronograma (origem/plano_dia/topicos). Seguro para rodar sempre
+    # (e em vários workers ao mesmo tempo: "duplicate column" é ignorado).
+    existentes = {r[1] for r in db.execute("PRAGMA table_info(ia_atividades)")}
+    for coluna, ddl in (("origem", "TEXT NOT NULL DEFAULT 'livre'"),
+                        ("plano_dia", "TEXT"),
+                        ("topicos", "TEXT NOT NULL DEFAULT '[]'")):
+        if coluna not in existentes:
+            try:
+                db.execute(f"ALTER TABLE ia_atividades ADD COLUMN {coluna} {ddl}")
+            except sqlite3.OperationalError as e:
+                if "duplicate column" not in str(e).lower():
+                    raise
+    db.execute("CREATE INDEX IF NOT EXISTS idx_ia_atividades_origem "
+               "ON ia_atividades (usuario_id, origem, plano_dia)")
     db.commit()
 
 
-def _registrar_uso(db, uid, tipo, *, tema="", modelo="", tokens=0, ok=True, erro="", duracao_ms=0):
+def registrar_uso(db, uid, tipo, *, tema="", modelo="", tokens=0, ok=True, erro="", duracao_ms=0):
+    """Loga uma chamada de IA em ia_uso (não faz commit)."""
     db.execute(
         "INSERT INTO ia_uso (usuario_id, tipo, tema, modelo, tokens, ok, erro, duracao_ms) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -173,11 +198,11 @@ def _uso_info(db, uid) -> dict:
 
 
 def resumo_ia_usuario(db, uid) -> tuple[dict, list[dict]]:
-    """(ia_stats, ia_recentes) para a página /atividades."""
+    """(ia_stats, ia_recentes) para a página /atividades (o plano do cronograma fica de fora)."""
     r = db.execute(
         "SELECT COUNT(*) total, COALESCE(SUM(xp_ganho), 0) xp, "
         "COALESCE(SUM(concluida), 0) concluidas, AVG(CASE WHEN concluida = 1 THEN nota END) media "
-        "FROM ia_atividades WHERE usuario_id = ?",
+        "FROM ia_atividades WHERE usuario_id = ? AND origem != 'cronograma'",
         (uid,),
     ).fetchone()
     stats = {
@@ -195,7 +220,7 @@ def resumo_ia_usuario(db, uid) -> tuple[dict, list[dict]]:
         }
         for a in db.execute(
             "SELECT id, titulo, tema, nivel, concluida, nota, xp_ganho, xp_total, criado_em "
-            "FROM ia_atividades WHERE usuario_id = ? ORDER BY id DESC LIMIT 3",
+            "FROM ia_atividades WHERE usuario_id = ? AND origem != 'cronograma' ORDER BY id DESC LIMIT 3",
             (uid,),
         ).fetchall()
     ]
@@ -210,9 +235,19 @@ def ia_configurada() -> bool:
 # Template helpers
 # ---------------------------------------------------------------------------
 
+def url_cronograma() -> str:
+    """URL do cronograma (o blueprint pode ainda não existir): usa o endpoint se estiver registrado."""
+    try:
+        if "cronograma.index" in current_app.view_functions:
+            return url_for("cronograma.index")
+    except Exception:  # fora de contexto/rota inexistente
+        pass
+    return "/cronograma/"
+
+
 @bp.app_context_processor
 def _ctx_ia():
-    return {"ia_disponivel": ia.ia_configurada()}
+    return {"ia_disponivel": ia.ia_configurada(), "cronograma_url": url_cronograma}
 
 
 @bp.app_template_filter("ia_data")
@@ -250,8 +285,8 @@ def _erro(msg: str, status: int = 400, codigo: str = "erro"):
     return jsonify({"ok": False, "erro": msg, "codigo": codigo}), status
 
 
-def _checar_requisicao_json():
-    """CSRF sem token: exige JSON (não dá para forjar via <form>) e mesma origem."""
+def checar_requisicao_json():
+    """Público. CSRF sem token: exige JSON (não dá para forjar via <form>) e mesma origem."""
     if not request.is_json:
         return _erro("Envie a requisição como JSON.", 415, "content_type")
     origem = request.headers.get("Origin") or request.headers.get("Referer")
@@ -271,8 +306,8 @@ def _checar_requisicao_json():
 # API interna para outros blueprints de IA (ex.: tutor_routes.py) reaproveitarem
 # a mesma checagem de origem/Content-Type, o log de uso e o "dia" do limite.
 erro_json = _erro
-checar_requisicao_json = _checar_requisicao_json
-registrar_uso = _registrar_uso
+_checar_requisicao_json = checar_requisicao_json   # nomes antigos (compatibilidade)
+_registrar_uso = registrar_uso
 HOJE_SQL = _HOJE_SQL
 
 
@@ -368,7 +403,7 @@ def _resultado_questao(q: dict, r: sqlite3.Row) -> dict:
         "xp_max": q["xp"],
         "feedback": r["feedback"],
         "resposta": resposta,
-        "revelar": ia.revelar(q),
+        "revelar": ia.revelar(q, resposta),
     }
 
 
@@ -449,7 +484,7 @@ def index():
                a.nota, a.xp_ganho, a.xp_total, a.criado_em, a.tentativas,
                (SELECT COUNT(*) FROM ia_respostas r WHERE r.atividade_id = a.id) AS respondidas
         FROM ia_atividades a
-        WHERE a.usuario_id = ?
+        WHERE a.usuario_id = ? AND a.origem != 'cronograma'
         ORDER BY a.id DESC
         LIMIT 60
         """,
@@ -501,10 +536,13 @@ def ver(atividade_id):
     respostas = _respostas(db, atividade_id)
     dicas = set(json.loads(row["dicas_usadas"] or "[]"))
 
+    origem = row["origem"]
+    do_plano = origem == "cronograma"
+
     # Atividade criada a partir de um post ("Praticar este post"): link de volta ao post
     post_info = None
     info = atividade.get("post")
-    if isinstance(info, dict) and isinstance(info.get("slug"), str):
+    if not do_plano and isinstance(info, dict) and isinstance(info.get("slug"), str):
         existente = db.execute("SELECT slug, titulo FROM posts WHERE slug = ?", (info["slug"],)).fetchone()
         if existente is not None:
             post_info = {"slug": existente["slug"], "titulo": existente["titulo"]}
@@ -527,8 +565,10 @@ def ver(atividade_id):
             "dica": url_for("ia.dica", atividade_id=row["id"]),
             "refazer": url_for("ia.refazer", atividade_id=row["id"]),
             "gerar": url_for("ia.gerar"),
-            "index": url_for("ia.index"),
+            "index": url_cronograma() if do_plano else url_for("ia.index"),
+            "cronograma": url_cronograma() if do_plano else None,
         },
+        "origem": origem,
         "questoes": questoes_cliente,
         "progresso": prog,
         "final": _resultado_final(row, atividade, respostas) if prog["concluida"] else None,
@@ -541,11 +581,14 @@ def ver(atividade_id):
             "base_id": row["id"],
             "post": post_info["slug"] if post_info else None,
         },
-        "ia_disponivel": ia.ia_configurada(),
+        "ia_disponivel": ia.ia_configurada() and not do_plano,
     }
     return render_template(
         "ia/ver.html",
         row=row,
+        origem=origem,
+        do_plano=do_plano,
+        cron_url=url_cronograma() if do_plano else None,
         atividade=atividade,
         payload=payload,
         progresso=prog,
@@ -559,15 +602,40 @@ def ver(atividade_id):
 # API JSON
 # ---------------------------------------------------------------------------
 
-def _inserir_atividade(db, uid, tema, nivel, foco, tipos, quantidade, atividade, modelo) -> int:
+ORIGENS = ("livre", "post", "cronograma")
+
+
+def inserir_atividade(db, uid, *, tema, nivel, foco, tipos, quantidade, atividade, modelo,
+                      origem="livre", plano_dia=None, topicos=None) -> int:
+    """Grava uma atividade já normalizada (`ia_service.normalizar_atividade`) e devolve o id.
+
+    Não faz commit (o chamador decide). `origem`: 'livre' | 'post' | 'cronograma'; `plano_dia`:
+    'YYYY-MM-DD' (dia de Brasília) do plano; `topicos`: lista de slugs — se omitida, vem dos
+    `topico` das questões."""
+    if origem not in ORIGENS:
+        origem = "livre"
+    if topicos is None:
+        topicos = [q.get("topico") for q in atividade.get("questoes", [])]
+    slugs = []
+    for t in topicos or []:
+        t = ia._topico_valido(t)
+        if t and t not in slugs:
+            slugs.append(t)
     atividade["quantidade_pedida"] = quantidade
     cur = db.execute(
         "INSERT INTO ia_atividades (usuario_id, tema, nivel, foco, tipos, quantidade, titulo, json, "
-        "modelo, xp_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (uid, tema, nivel, foco, json.dumps(tipos), len(atividade["questoes"]), atividade["titulo"],
-         json.dumps(atividade, ensure_ascii=False), modelo, atividade["xp_total"]),
+        "modelo, xp_total, origem, plano_dia, topicos) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (uid, tema, nivel, foco, json.dumps(list(tipos)), len(atividade["questoes"]), atividade["titulo"],
+         json.dumps(atividade, ensure_ascii=False), modelo, atividade["xp_total"], origem,
+         (str(plano_dia)[:10] if plano_dia else None), json.dumps(slugs[:20])),
     )
     return cur.lastrowid
+
+
+def _inserir_atividade(db, uid, tema, nivel, foco, tipos, quantidade, atividade, modelo,
+                       origem="livre") -> int:
+    return inserir_atividade(db, uid, tema=tema, nivel=nivel, foco=foco, tipos=tipos,
+                             quantidade=quantidade, atividade=atividade, modelo=modelo, origem=origem)
 
 
 def _resposta_gerada(db, uid, atividade_id, atividade, **extra):
@@ -589,8 +657,8 @@ def _atividade_do_cache(db, uid, post, nivel, tipos, payload):
         ia.embaralhar_questao(q)
     modelo = "cache:" + str(payload.get("modelo") or "ia")[:90]
     novo_id = _inserir_atividade(db, uid, atividade.get("tema") or ia.limpar_tema(post["titulo"]),
-                                 nivel, "misto", tipos, POST_QUANTIDADE, atividade, modelo)
-    _registrar_uso(db, uid, "pratica_cache", tema=post["titulo"], modelo=modelo)
+                                 nivel, "misto", tipos, POST_QUANTIDADE, atividade, modelo, "post")
+    registrar_uso(db, uid, "pratica_cache", tema=post["titulo"], modelo=modelo)
     db.commit()
     return _resposta_gerada(db, uid, novo_id, atividade, cache=True)
 
@@ -598,7 +666,7 @@ def _atividade_do_cache(db, uid, post, nivel, tipos, payload):
 @bp.route("/gerar", methods=["POST"])
 @login_requerido_api
 def gerar():
-    falha = _checar_requisicao_json()
+    falha = checar_requisicao_json()
     if falha:
         return falha
     if not ia.ia_configurada():
@@ -694,12 +762,12 @@ def gerar():
             try:
                 resultado = ia.gerar_atividade(tema, nivel, quantidade, tipos, foco, evitar, contexto)
             except ia.IAErro as e:
-                _registrar_uso(db, uid, "geracao", tema=tema, ok=False, erro=e.codigo)
+                registrar_uso(db, uid, "geracao", tema=tema, ok=False, erro=e.codigo)
                 db.commit()
                 return _erro(e.mensagem, e.status, e.codigo)
             except Exception:  # nunca deixa vazar stack/segredo para o cliente
                 log.exception("Erro inesperado gerando atividade com IA")
-                _registrar_uso(db, uid, "geracao", tema=tema, ok=False, erro="interno")
+                registrar_uso(db, uid, "geracao", tema=tema, ok=False, erro="interno")
                 db.commit()
                 return _erro("Erro inesperado ao gerar a atividade. Tente novamente.", 500, "interno")
 
@@ -709,8 +777,8 @@ def gerar():
                 atividade["post"] = {"slug": post["slug"], "titulo": post["titulo"]}
                 _gravar_cache_pratica(db, post["id"], nivel, corpo_hash, atividade, resultado["modelo"])
             novo_id = _inserir_atividade(db, uid, tema, nivel, foco, tipos, quantidade, atividade,
-                                         resultado["modelo"])
-            _registrar_uso(db, uid, "geracao", tema=tema, modelo=resultado["modelo"],
+                                         resultado["modelo"], "post" if post is not None else "livre")
+            registrar_uso(db, uid, "geracao", tema=tema, modelo=resultado["modelo"],
                            tokens=resultado["tokens"], duracao_ms=resultado["duracao_ms"])
             db.commit()
         finally:
@@ -726,7 +794,7 @@ def gerar():
 @bp.route("/<int:atividade_id>/responder", methods=["POST"])
 @login_requerido_api
 def responder(atividade_id):
-    falha = _checar_requisicao_json()
+    falha = checar_requisicao_json()
     if falha:
         return falha
     row = _atividade_do_usuario(atividade_id)
@@ -753,7 +821,7 @@ def responder(atividade_id):
             if not isinstance(resposta, str) or len(resposta.strip()) < 2:
                 raise ValueError("Escreva sua resposta antes de enviar.")
             texto = ia._txt(resposta, ia.RESPOSTA_ABERTA_MAX, multilinha=True)
-            pontuacao, feedback = _corrigir_aberta(db, uid, q, texto)
+            pontuacao, feedback = _corrigir_aberta(db, uid, q, texto, neutro=row["origem"] == "cronograma")
             resultado = {"correta": pontuacao >= 70, "pontuacao": pontuacao, "resposta": texto}
         else:
             resultado = ia.corrigir_objetiva(q, resposta)
@@ -762,6 +830,8 @@ def responder(atividade_id):
                             "na posição certa.")
             elif q["tipo"] == "comando" and not resultado["correta"]:
                 feedback = "Esse comando não corresponde ao que foi pedido."
+            elif q["tipo"] in ("associar", "lacuna", "linha"):
+                feedback = resultado.get("feedback", "")
     except ValueError as e:
         return _erro(str(e), 400, "resposta_invalida")
 
@@ -796,13 +866,49 @@ def responder(atividade_id):
         db.execute("UPDATE ia_atividades SET xp_ganho = ? WHERE id = ?", (prog["xp"], atividade_id))
     db.commit()
 
+    # Ganchos do cronograma (módulo opcional): aprendem com cada resposta e avisam a conclusão.
+    atual = _atividade_do_usuario(atividade_id) or row
+    gancho_cronograma("on_resposta", db, uid, atual, q, bool(resultado["correta"]), int(resultado["pontuacao"]))
+    gamificacao = _recompensar(db, uid, atividade_id, final) if final else None
+    extra = gancho_cronograma("on_conclusao", db, uid, atual) if final else None
+
     return jsonify({
         "ok": True,
         "resultado": _resultado_questao(q, respostas[qid]),
         "progresso": prog,
         "final": final,
-        "gamificacao": _recompensar(db, uid, atividade_id, final) if final else None,
+        "gamificacao": gamificacao,
+        "cronograma": extra if isinstance(extra, dict) else None,
     })
+
+
+def gancho_cronograma(nome, db, uid, atividade_row, *args):
+    """Chama `cronograma.on_resposta(db, uid, row, questao, correta, pontuacao)` ou
+    `cronograma.on_conclusao(db, uid, row)` se o módulo existir. Nunca derruba a resposta do aluno:
+    qualquer falha vira log e o retorno é None."""
+    try:
+        import cronograma
+    except ModuleNotFoundError as e:
+        if e.name != "cronograma":
+            log.exception("Falha ao importar o módulo cronograma")
+        return None
+    except Exception:
+        log.exception("Falha ao importar o módulo cronograma")
+        return None
+    fn = getattr(cronograma, nome, None)
+    if not callable(fn):
+        return None
+    try:
+        retorno = fn(db, uid, atividade_row, *args)
+        db.commit()
+        return retorno
+    except Exception:
+        log.exception("Gancho cronograma.%s falhou (atividade %s)", nome, atividade_row["id"])
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return None
 
 
 def _recompensar(db, uid, atividade_id, final):
@@ -823,19 +929,22 @@ def _recompensar(db, uid, atividade_id, final):
         return None
 
 
-def _corrigir_aberta(db, uid, q, texto) -> tuple[int, str]:
+def _corrigir_aberta(db, uid, q, texto, neutro=False) -> tuple[int, str]:
     """Correção por IA; sem IA (ou com erro) dá crédito parcial e mostra o gabarito."""
     teto = max(60, ia.limite_diario() * 8) if ia.limite_diario() > 0 else 400
     if ia.ia_configurada() and _correcoes_hoje(db, uid) < teto:
         try:
             r = ia.corrigir_aberta_ia(q, texto)
-            _registrar_uso(db, uid, "correcao", modelo=r["modelo"], tokens=r["tokens"])
+            registrar_uso(db, uid, "correcao", modelo=r["modelo"], tokens=r["tokens"])
             return r["nota"], r["feedback"]
         except ia.IAErro as e:
-            _registrar_uso(db, uid, "correcao", ok=False, erro=e.codigo)
+            registrar_uso(db, uid, "correcao", ok=False, erro=e.codigo)
         except Exception:
             log.exception("Erro inesperado corrigindo resposta aberta")
     nota = ia.nota_heuristica(texto, q["gabarito"], q.get("criterios", []))
+    if neutro:  # plano do cronograma: sem falar em IA
+        return nota, ("Sua resposta foi comparada com o gabarito e recebeu crédito parcial. "
+                      "Confira a resposta de referência abaixo.")
     return nota, ("A correção automática por IA não está disponível agora, então você recebeu "
                   "crédito parcial. Compare sua resposta com o gabarito abaixo.")
 
@@ -843,7 +952,7 @@ def _corrigir_aberta(db, uid, q, texto) -> tuple[int, str]:
 @bp.route("/<int:atividade_id>/dica", methods=["POST"])
 @login_requerido_api
 def dica(atividade_id):
-    falha = _checar_requisicao_json()
+    falha = checar_requisicao_json()
     if falha:
         return falha
     row = _atividade_do_usuario(atividade_id)
@@ -865,9 +974,9 @@ def dica(atividade_id):
             try:
                 r = ia.gerar_dica_ia(q)
                 texto = r["dica"]
-                _registrar_uso(db, uid, "dica", modelo=r["modelo"], tokens=r["tokens"])
+                registrar_uso(db, uid, "dica", modelo=r["modelo"], tokens=r["tokens"])
             except ia.IAErro as e:
-                _registrar_uso(db, uid, "dica", ok=False, erro=e.codigo)
+                registrar_uso(db, uid, "dica", ok=False, erro=e.codigo)
         if not texto:
             texto = "Releia o resumo teórico no topo da página — os conceitos necessários estão lá."
         q["dica"] = texto  # guarda para não gastar outra chamada
@@ -886,12 +995,14 @@ def dica(atividade_id):
 @bp.route("/<int:atividade_id>/refazer", methods=["POST"])
 @login_requerido_api
 def refazer(atividade_id):
-    falha = _checar_requisicao_json()
+    falha = checar_requisicao_json()
     if falha:
         return falha
     row = _atividade_do_usuario(atividade_id)
     if row is None:
         return _erro("Atividade não encontrada.", 404, "nao_encontrada")
+    if row["origem"] == "cronograma":
+        return _erro("Esta missão faz parte do seu plano — ela não pode ser refeita.", 409, "plano")
     db = get_db()
     atividade = _carregar(row)
     for q in atividade["questoes"]:  # nova ordem de alternativas/passos
@@ -909,12 +1020,14 @@ def refazer(atividade_id):
 @bp.route("/<int:atividade_id>/excluir", methods=["POST"])
 @login_requerido_api
 def excluir(atividade_id):
-    falha = _checar_requisicao_json()
+    falha = checar_requisicao_json()
     if falha:
         return falha
     row = _atividade_do_usuario(atividade_id)
     if row is None:
         return _erro("Atividade não encontrada.", 404, "nao_encontrada")
+    if row["origem"] == "cronograma":
+        return _erro("Esta missão faz parte do seu plano — ela não pode ser apagada.", 409, "plano")
     db = get_db()
     db.execute("DELETE FROM ia_respostas WHERE atividade_id = ?", (atividade_id,))
     db.execute("DELETE FROM ia_atividades WHERE id = ?", (atividade_id,))

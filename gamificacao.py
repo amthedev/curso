@@ -46,8 +46,11 @@ FONTES = {
     "licao_concluida": "Trilha concluída",
     "ia_questao": "Questão com IA",
     "ia_atividade": "Atividade com IA",
+    "cronograma_dia": "Dia do plano",
+    "cronograma_bau": "Baú do dia",
 }
-_FONTES_META = {"ia_perfeita"}  # eventos de xp=0 que só servem de marcador
+# eventos de xp=0 que só servem de marcador (alimentam conquistas)
+_FONTES_META = {"ia_perfeita", "cronograma_boss", "cronograma_dominado"}
 _FONTES_VALIDAS = set(FONTES) | _FONTES_META
 
 # (nome, xp mínimo)
@@ -392,6 +395,12 @@ def _eventos_recentes(db, uid: int, hoje: date, limite: int = 10) -> list[dict]:
             ativ = ref.split(":")[0]
             titulo = "Questão com IA acertada"
             detalhe = ia_titulos.get(ativ, f"Atividade #{ativ}")
+        elif fonte in ("cronograma_dia", "cronograma_bau"):
+            titulo = "Plano do dia concluído" if fonte == "cronograma_dia" else "Baú do dia aberto"
+            try:
+                detalhe = f"Cronograma de {_fmt_dia(date.fromisoformat(ref))}"
+            except ValueError:
+                detalhe = "Cronograma"
         else:
             titulo, detalhe = FONTES.get(fonte, fonte), ""
         eventos.append({
@@ -435,6 +444,17 @@ def stats(db, uid: int, hoje: date | None = None) -> dict:
         )
     ]
 
+    # Cronograma: dias do plano concluídos (ref = "YYYY-MM-DD") -> maior sequência seguida.
+    dias_plano = set()
+    for (ref,) in db.execute(
+        "SELECT ref FROM xp_eventos WHERE usuario_id = ? AND fonte = 'cronograma_dia'", (uid,)
+    ):
+        try:
+            dias_plano.add(date.fromisoformat(ref))
+        except ValueError:
+            pass
+    plano_atual, plano_recorde = calcular_streaks(dias_plano, hoje)
+
     return {
         "xp_total": total,
         "nivel": nivel_info(total),
@@ -448,6 +468,11 @@ def stats(db, uid: int, hoje: date | None = None) -> dict:
         "n_ia": contagem.get("ia_atividade", 0),
         "n_ia_questoes": contagem.get("ia_questao", 0),
         "n_ia_perfeitas": contagem.get("ia_perfeita", 0),
+        "n_plano_dias": contagem.get("cronograma_dia", 0),
+        "plano_streak_atual": plano_atual,
+        "plano_streak_recorde": plano_recorde,
+        "n_plano_boss": contagem.get("cronograma_boss", 0),
+        "n_plano_dominados": contagem.get("cronograma_dominado", 0),
         "missao_ids": missao_ids,
         "heatmap": _heatmap(xp_por_dia, hoje),
         "eventos_recentes": _eventos_recentes(db, uid, hoje),
@@ -480,6 +505,12 @@ _ICO_CHIP = _svg('<rect x="6.5" y="6.5" width="11" height="11" rx="2"/><path d="
 _ICO_BRILHO = _svg('<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"/>'
                    '<path d="M19 16v4M17 18h4M5 17v3M3.5 18.5h3"/>')
 _ICO_ALVO = _svg('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/>')
+_ICO_CALENDARIO = _svg('<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'
+                       '<path d="m9 15 2.2 2.2L15.5 13"/>')
+_ICO_ESTRELA = _svg('<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3z"/>')
+_ICO_COROA = _svg('<path d="M3.5 19h17"/><path d="M4.5 8l4.2 4L12 5.5 15.3 12l4.2-4L18 17.5H6L4.5 8z"/>')
+_ICO_LAMPADA = _svg('<path d="M9 18h6M10 21h4"/>'
+                    '<path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2v.1h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/>')
 
 
 def _prog(chave: str, meta: int):
@@ -541,6 +572,27 @@ CONQUISTAS = [
         "codigo": "perfeccionista", "nome": "Perfeccionista", "icone": _ICO_ALVO, "tier": "ouro",
         "desc": "Acerte 100% de uma atividade com IA.",
         "check": lambda s: s["n_ia_perfeitas"] >= 1, "progresso": _prog("n_ia_perfeitas", 1),
+    },
+    # --- Cronograma adaptativo (plano diário) ---
+    {
+        "codigo": "primeiro_treino", "nome": "Primeiro treino", "icone": _ICO_CALENDARIO, "tier": "bronze",
+        "desc": "Complete as 3 missões do seu plano do dia pela primeira vez.",
+        "check": lambda s: s["n_plano_dias"] >= 1, "progresso": _prog("n_plano_dias", 1),
+    },
+    {
+        "codigo": "semana_perfeita", "nome": "Semana perfeita", "icone": _ICO_ESTRELA, "tier": "ouro",
+        "desc": "Complete o plano do dia 7 dias seguidos.",
+        "check": lambda s: s["plano_streak_recorde"] >= 7, "progresso": _prog("plano_streak_recorde", 7),
+    },
+    {
+        "codigo": "boss_derrotado", "nome": "Boss derrotado", "icone": _ICO_COROA, "tier": "prata",
+        "desc": "Derrote o boss da semana (domingo) com 60% de acerto ou mais.",
+        "check": lambda s: s["n_plano_boss"] >= 1, "progresso": _prog("n_plano_boss", 1),
+    },
+    {
+        "codigo": "mente_afiada", "nome": "Mente afiada", "icone": _ICO_LAMPADA, "tier": "ouro",
+        "desc": "Domine 10 tópicos da ementa no seu plano.",
+        "check": lambda s: s["n_plano_dominados"] >= 10, "progresso": _prog("n_plano_dominados", 10),
     },
 ]
 _CONQUISTAS_POR_CODIGO = {c["codigo"]: c for c in CONQUISTAS}

@@ -1,5 +1,7 @@
 {% extends "base.html" %}
-{% block title %}{{ atividade.titulo }} — Atividades com IA — Allan Dev{% endblock %}
+{% block title %}{{ atividade.titulo }} — {{ 'Cronograma' if do_plano else 'Atividades com IA' }} — Allan Dev{% endblock %}
+
+{% block meta_desc %}{% if do_plano %}Missão do seu plano de estudos de cibersegurança.{% else %}Atividade gerada na hora com IA — Allan Dev.{% endif %}{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/ia.css') }}">
@@ -12,11 +14,18 @@
 <section class="ia-hero ia-hero-ver">
   <div class="ia-hero-glow" aria-hidden="true"></div>
   <div class="wrap">
+    {% if do_plano %}
+    <a class="ia-voltar" href="{{ cron_url }}">
+      <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-arrow-left"/></svg> Cronograma
+    </a>
+    {% else %}
     <a class="ia-voltar" href="{{ url_for('ia.index') }}">
       <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-arrow-left"/></svg> Atividades com IA
     </a>
+    {% endif %}
     <div class="ia-ver-tags">
-      <span class="ia-badge ia-badge-accent"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-sparkles"/></svg> {{ row.tema }}</span>
+      {% if do_plano %}<span class="ia-badge ia-badge-info"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-calendar"/></svg> Missão do plano</span>{% endif %}
+      <span class="ia-badge ia-badge-accent"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-{{ 'target' if do_plano else 'sparkles' }}"/></svg> {{ row.tema }}</span>
       <span class="nivel-badge nivel-{{ row.nivel|lower }}">{{ row.nivel }}</span>
       <span class="ia-badge">{{ focos.get(row.foco, 'Misto') }}</span>
       <span class="ia-badge ia-badge-warn"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-bolt"/></svg> {{ progresso.xp_total }} XP</span>
@@ -33,10 +42,12 @@
       </ul>
     </div>
     {% endif %}
-    {% if post_info %}
+    {% if post_info and not do_plano %}
     <p class="ia-modelo ia-post-link"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-teoria"/></svg> baseada no post <a href="{{ url_for('post_detalhe', slug=post_info.slug) }}">{{ post_info.titulo }}</a></p>
     {% endif %}
+    {% if not do_plano %}
     <p class="ia-modelo"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-cpu"/></svg> {% if (row.modelo or '').startswith('cache:') %}gerado por <code>{{ row.modelo[6:] or 'IA' }}</code> (reaproveitado do cache do post) · {{ row.criado_em|ia_data }}{% else %}gerado por <code>{{ row.modelo or 'IA' }}</code> · {{ row.criado_em|ia_data }}{% endif %}</p>
+    {% endif %}
   </div>
 </section>
 
@@ -174,6 +185,66 @@
             {% endfor %}
           </ol>
           <p class="ia-sr" aria-live="polite" data-ordem-status></p>
+
+          {% elif q.tipo == 'associar' %}
+          {% set n = q.termos|length %}
+          <p class="ia-ordem-dica" id="q-{{ q.id }}-instr">Escolha um termo e depois a definição que combina — cada par ganha uma cor. Toque num par de novo para desfazer.</p>
+          <div class="ia-assoc" data-assoc aria-describedby="q-{{ q.id }}-instr" style="--n: {{ n }}">
+            <div class="ia-assoc-board">
+              <div class="ia-assoc-colwrap">
+                <p class="ia-assoc-hd" aria-hidden="true">Termos</p>
+                <ul class="ia-assoc-col" role="list" aria-label="Termos">
+                  {%- for t in q.termos %}
+                  <li><button type="button" class="ia-assoc-item ia-assoc-t" data-lado="t" data-i="{{ loop.index0 }}" aria-pressed="false">
+                    <span class="ia-assoc-pin" aria-hidden="true"></span>
+                    <span class="ia-assoc-txt">{{ t|ia_inline }}</span>
+                  </button></li>
+                  {%- endfor %}
+                </ul>
+              </div>
+              <div class="ia-assoc-colwrap ia-assoc-colwrap-d">
+                <p class="ia-assoc-hd" aria-hidden="true">Definições</p>
+                <ul class="ia-assoc-col" role="list" aria-label="Definições">
+                  {%- for d in q.definicoes %}
+                  <li><button type="button" class="ia-assoc-item ia-assoc-d" data-lado="d" data-i="{{ loop.index0 }}" aria-pressed="false">
+                    <span class="ia-assoc-pin" aria-hidden="true"></span>
+                    <span class="ia-assoc-txt">{{ d|ia_inline }}</span>
+                  </button></li>
+                  {%- endfor %}
+                </ul>
+              </div>
+              <svg class="ia-assoc-lines" aria-hidden="true" focusable="false"></svg>
+            </div>
+            <div class="ia-assoc-bar">
+              <span class="ia-assoc-count"><b data-assoc-n>0</b>/{{ n }} pares formados</span>
+              <button type="button" class="ia-link-btn" data-assoc-limpar hidden>
+                <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-refresh"/></svg> Desfazer tudo
+              </button>
+            </div>
+            <p class="ia-sr" aria-live="polite" data-assoc-status></p>
+          </div>
+
+          {% elif q.tipo == 'lacuna' %}
+          <p class="ia-ordem-dica" id="q-{{ q.id }}-instr">Preencha cada lacuna. Enter passa para a próxima — e confere quando todas estão preenchidas.</p>
+          <div class="ia-lacuna" data-lacuna aria-describedby="q-{{ q.id }}-instr">
+            <p class="ia-lacuna-texto">
+              {%- for parte in q.partes -%}
+                {{ parte }}{% if not loop.last %}<span class="ia-gap-wrap"><input class="ia-gap" type="text" maxlength="80" size="8" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-gap="{{ loop.index0 }}" aria-label="Lacuna {{ loop.index }} de {{ loop.length - 1 }}"></span>{% endif %}
+              {%- endfor -%}
+            </p>
+          </div>
+
+          {% elif q.tipo == 'linha' %}
+          <p class="ia-ordem-dica" id="q-{{ q.id }}-instr">Clique nas linhas suspeitas para marcá-las; clique de novo para desmarcar. Errar uma linha tira pontos.</p>
+          <div class="ia-code" data-linha aria-describedby="q-{{ q.id }}-instr">
+            <div class="ia-term-bar"><i></i><i></i><i></i><span>{{ q.linguagem }}</span><em class="ia-code-count" data-linha-count>nenhuma linha marcada</em></div>
+            <ol class="ia-code-body" role="list">
+              {%- for l in q.trecho %}
+              <li><button type="button" class="ia-code-line" data-n="{{ loop.index }}" aria-pressed="false"><span class="ia-sr">Linha {{ loop.index }}:</span><span class="ia-ln" aria-hidden="true">{{ loop.index }}</span><code class="ia-lc">{{ l }}</code><span class="ia-lm" aria-hidden="true"></span></button></li>
+              {%- endfor %}
+            </ol>
+          </div>
+          <p class="ia-sr" aria-live="polite" data-linha-status></p>
           {% endif %}
 
           <div class="ia-dica-box" hidden>
@@ -184,7 +255,7 @@
           <div class="ia-q-acoes">
             <button type="submit" class="btn btn-primary ia-q-enviar">
               <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-check"/></svg>
-              <span>Confirmar resposta</span>
+              <span>{{ 'Conferir' if q.tipo in ('associar', 'lacuna', 'linha') else 'Confirmar resposta' }}</span>
             </button>
             <button type="button" class="btn btn-ghost btn-sm ia-q-dica">
               <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-bulb"/></svg>
@@ -210,7 +281,7 @@
   </div>
 </div>
 
-{% include "ia/_loading.html" %}
+{% if not do_plano %}{% include "ia/_loading.html" %}{% endif %}
 <script type="application/json" id="iaData">{{ payload|tojson }}</script>
 {% endblock %}
 

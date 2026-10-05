@@ -28,6 +28,8 @@ from ia_routes import bp as ia_bp, init_ia_db, registrar_admin as registrar_admi
 import gamificacao as gami
 from aluno_routes import bp as aluno_bp
 from tutor_routes import bp as tutor_bp, init_tutor_db
+from cronograma import init_cronograma_db
+from cronograma_routes import bp as cronograma_bp
 
 app = Flask(__name__)
 
@@ -106,6 +108,7 @@ app.register_blueprint(ia_bp)
 registrar_admin_ia(app)  # /painel-allan-dev/ia  (endpoint "admin_ia")
 app.register_blueprint(aluno_bp)  # /eu, /ranking, /api/eu/stats
 app.register_blueprint(tutor_bp)  # /tutor/perguntar, /tutor/historico ("Travei?" do laboratório)
+app.register_blueprint(cronograma_bp)  # /cronograma/ (plano diário adaptativo)
 
 
 # ---------------------------------------------------------------------------
@@ -266,6 +269,7 @@ def init_db():
         _seed(db)
     _seed_licoes(db)
     init_ia_db(db)
+    init_cronograma_db(db)  # cronograma adaptativo (usa usuarios e ia_atividades)
     init_tutor_db(db)  # chat do tutor "Travei?" (usa ia_uso, criada acima)
     gami.init_gamificacao_db(db)  # depois de usuarios/licoes/ia_*
     gami.backfill(db)             # idempotente: converte progresso antigo em xp_eventos

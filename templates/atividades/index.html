@@ -63,7 +63,10 @@
           {{ 'Continuar trilha' if t.foco.em_andamento else 'Começar primeira trilha' }}
         </a>
         {% endif %}
-        <a class="btn btn-outline btn-lg" href="{{ url_for('ia.index') }}">
+        <a class="btn btn-outline btn-lg" href="{{ url_for('cronograma.index') }}">
+          <svg class="ico" aria-hidden="true"><use href="#i-flame"/></svg> Treino de hoje
+        </a>
+        <a class="btn btn-ghost btn-lg" href="{{ url_for('ia.index') }}">
           <svg class="ico" aria-hidden="true"><use href="#i-sparkles"/></svg> Atividade com IA
         </a>
       </div>

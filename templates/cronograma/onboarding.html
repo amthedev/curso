@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% from "_ui.html" import ico %}
+{#
+  Cronograma — onboarding (3 passos): nível, objetivo e tempo por dia.
+  Contexto: opcoes {niveis, objetivos{chave: rótulo}, minutos}, perfil (dict | None), total_topicos, total_modulos.
+  Sem JS: formulário normal (os 3 grupos de radios aparecem empilhados). Com JS: wizard animado.
+#}
+
+{% macro ic(nome, cls='') -%}
+{%- if nome in ['target','sparkles','check','book','terminal','shield','bug','code','compass','clock','arrow-right','arrow-left','zap','star'] -%}
+{{ ico(nome, cls) }}
+{%- else -%}
+<svg class="ico {{ cls }}" aria-hidden="true" focusable="false"><use href="#cr-i-{{ nome }}"/></svg>
+{%- endif -%}
+{%- endmacro %}
+
+{% block title %}{{ 'Ajustar plano' if perfil else 'Monte seu plano' }} — Allan Dev{% endblock %}
+{% block meta_desc %}Responda 3 perguntas rápidas e receba um treino diário de cibersegurança feito para o seu nível, objetivo e tempo.{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/cronograma.css') }}">
+{% endblock %}
+
+{% block content %}
+{# ───── metadados de apresentação ───── #}
+{% set NIV = {
+  'Iniciante':     {'ic': 'sprout',   'barras': 1, 'frase': 'Estou começando',
+                    'desc': 'Conceitos do zero, vocabulário e as primeiras ferramentas — com calma e passo a passo.',
+                    'itens': ['Redes e Linux básicos', 'Explicações guiadas']},
+  'Intermediário': {'ic': 'bolt',     'barras': 2, 'frase': 'Já me viro no terminal',
+                    'desc': 'Já tenho base. Quero praticar mais, entender o porquê e ir além do básico.',
+                    'itens': ['Prática no terminal', 'Ferramentas do dia a dia']},
+  'Avançado':      {'ic': 'mountain', 'barras': 3, 'frase': 'Quero desafio de verdade',
+                    'desc': 'Base sólida. Quero cenários difíceis, técnicas mais pesadas e pouca mão na cabeça.',
+                    'itens': ['Cenários complexos', 'Técnicas avançadas']},
+} %}
+{% set OBJ = {
+  'red':    {'ic': 'crosshair', 'cor': 'red',    'frase': 'Pensar como o atacante',
+             'treino': ['Reconhecimento e enumeração', 'Exploração e pós-exploração', 'Escalada de privilégios']},
+  'blue':   {'ic': 'shield',    'cor': 'blue',   'frase': 'Detectar e responder',
+             'treino': ['Logs, monitoramento e SIEM', 'Resposta a incidentes', 'Hardening e defesa em profundidade']},
+  'appsec': {'ic': 'code',      'cor': 'appsec', 'frase': 'Quebrar e proteger aplicações',
+             'treino': ['OWASP Top 10 na prática', 'APIs, sessões e autenticação', 'Bug bounty e relatórios']},
+  'geral':  {'ic': 'layers',    'cor': 'geral',  'frase': 'Um pouco de tudo',
+             'treino': ['Redes, Linux e Web', 'Criptografia e identidade', 'Ataque e defesa lado a lado']},
+} %}
+{% set MIN = {
+  10: {'nome': 'Rápido',      'frase': 'Um café e pronto'},
+  20: {'nome': 'Equilibrado', 'frase': 'O ritmo mais comum'},
+  40: {'nome': 'Intenso',     'frase': 'Para quem quer correr'},
+} %}
+{% set ordem_obj = [] %}
+{% for k in ['red', 'blue', 'appsec', 'geral'] %}{% if k in opcoes.objetivos %}{% set _ = ordem_obj.append(k) %}{% endif %}{% endfor %}
+{% for k in opcoes.objetivos %}{% if k not in ordem_obj %}{% set _ = ordem_obj.append(k) %}{% endif %}{% endfor %}
+
+{% set sel_nivel = perfil.nivel if perfil else '' %}
+{% set sel_obj = perfil.objetivo if perfil else '' %}
+{% set sel_min = perfil.minutos if perfil else 20 %}
+{% set total_t = total_topicos or 0 %}
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="cr-i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.2 8.2 8 9 4.8-.8 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="cr-i-code" viewBox="0 0 24 24"><path d="m8 7-5 5 5 5"/><path d="m16 7 5 5-5 5"/><path d="m14 4-4 16"/></symbol>
+    <symbol id="cr-i-sprout" viewBox="0 0 24 24"><path d="M12 21v-9"/><path d="M12 12c0-4 2.5-6.5 7-6.5 0 4-2.5 6.5-7 6.5z"/><path d="M12 14.5C12 11 9.5 9 5 9c0 3.5 2.5 5.5 7 5.5z"/></symbol>
+    <symbol id="cr-i-bolt" viewBox="0 0 24 24"><path d="M13 2 4.5 13.5H11L10 22l9-12h-6.5L13 2z"/></symbol>
+    <symbol id="cr-i-mountain" viewBox="0 0 24 24"><path d="m3 20 6.5-12 4 7 2.5-4L21 20z"/><path d="m8.2 11 1.3-1 1.3 1"/></symbol>
+    <symbol id="cr-i-crosshair" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></symbol>
+    <symbol id="cr-i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></symbol>
+    <symbol id="cr-i-flame" viewBox="0 0 24 24"><path d="M12 2.5c.8 3.2 4.5 4.8 4.5 9.2a4.5 4.5 0 0 1-9 0c0-1.8.9-3 2-4.1.2 1.3.9 2 1.7 2.2C10.6 8.8 10.4 5.5 12 2.5z"/></symbol>
+    <symbol id="cr-i-sword" viewBox="0 0 24 24"><path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/></symbol>
+    <symbol id="cr-i-gem" viewBox="0 0 24 24"><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M9 3 7.5 9 12 21l4.5-12L15 3"/></symbol>
+    <symbol id="cr-i-sliders" viewBox="0 0 24 24"><path d="M4 6h9M19 6h1M4 12h3M13 12h7M4 18h11M21 18h-1"/><circle cx="16" cy="6" r="2.4"/><circle cx="10" cy="12" r="2.4"/><circle cx="18" cy="18" r="2.4"/></symbol>
+    <symbol id="cr-i-flag" viewBox="0 0 24 24"><path d="M5 21V4"/><path d="M5 4.5h12l-2.5 4 2.5 4H5"/></symbol>
+    <symbol id="cr-i-crown" viewBox="0 0 24 24"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z"/><path d="M6 21.5h12"/></symbol>
+    <symbol id="cr-i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></symbol>
+  </defs>
+</svg>
+
+<main class="wrap cr-ob" id="crOnb">
+
+  <header class="cr-ob-head">
+    <span class="cr-eyebrow">// {{ 'ajustar plano' if perfil else 'seu cronograma' }}</span>
+    <h1>{% if perfil %}Ajuste o seu <span class="grad-text">plano de treino</span>{% else %}Vamos montar o seu <span class="grad-text">plano de treino</span>{% endif %}</h1>
+    <p>
+      {% if perfil %}
+      Mude o que quiser. O próximo treino já sai com as novas escolhas — e o seu progresso continua salvo.
+      {% else %}
+      Três perguntas rápidas. Todo dia você recebe missões novas, no seu ritmo, e o plano se adapta ao que você acerta e erra.
+      {% endif %}
+    </p>
+  </header>
+
+  <div class="cr-ob-grid">
+
+    <form class="cr-wiz" id="crWiz" method="post" action="{{ url_for('cronograma.salvar_perfil') }}"
+          data-edit="{{ '1' if perfil else '0' }}" data-topicos="{{ total_t }}" data-modulos="{{ total_modulos or 0 }}">
+
+      {# progresso (só com JS) #}
+      <div class="cr-wiz-prog cr-js-only" aria-hidden="true">
+        <ol class="cr-stepper">
+          <li class="is-on" data-step-dot="1"><span class="cr-stepper-dot">1</span><span class="cr-stepper-lbl">Nível</span></li>
+          <li data-step-dot="2"><span class="cr-stepper-dot">2</span><span class="cr-stepper-lbl">Objetivo</span></li>
+          <li data-step-dot="3"><span class="cr-stepper-dot">3</span><span class="cr-stepper-lbl">Tempo</span></li>
+          <li data-step-dot="4"><span class="cr-stepper-dot">{{ ic('check') }}</span><span class="cr-stepper-lbl">Pronto</span></li>
+        </ol>
+        <div class="cr-prog" id="crProg"><i style="--w:8%"></i></div>
+      </div>
+      <p class="cr-sr" id="crPassoAnuncio" role="status" aria-live="polite"></p>
+
+      {# ───────── Passo 1: nível ───────── #}
+      <fieldset class="cr-step is-on" data-step="1">
+        <legend>
+          <span class="cr-step-kicker">Passo 1 de 3</span>
+          <span class="cr-step-title">Qual é o seu nível hoje?</span>
+          <span class="cr-step-sub">Sem pressão: dá para mudar depois. É só para o primeiro treino acertar o tom.</span>
+        </legend>
+        <div class="cr-opts cr-opts-3">
+          {% for n in opcoes.niveis %}
+          {% set nm = NIV.get(n, {'ic': 'star', 'barras': 1, 'frase': n, 'desc': '', 'itens': []}) %}
+          <label class="cr-opt cr-opt-nivel n{{ nm.barras }}">
+            <input type="radio" name="nivel" value="{{ n }}" required {% if sel_nivel == n %}checked{% endif %} data-label="{{ n }}" data-ic="{{ nm.ic }}">
+            <span class="cr-opt-card">
+              <span class="cr-opt-check" aria-hidden="true">{{ ic('check') }}</span>
+              <span class="cr-opt-ico">{{ ic(nm.ic) }}</span>
+              <span class="cr-opt-nome">{{ n }}</span>
+              <span class="cr-opt-frase">{{ nm.frase }}</span>
+              {% if nm.desc %}<span class="cr-opt-desc">{{ nm.desc }}</span>{% endif %}
+              <span class="cr-sinal n{{ nm.barras }}" aria-hidden="true"><i></i><i></i><i></i></span>
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+        <div class="cr-step-nav cr-js-only">
+          <span></span>
+          <button type="button" class="btn btn-primary btn-lg" data-next disabled><span class="btn-label">Continuar</span> {{ ic('arrow-right') }}</button>
+        </div>
+      </fieldset>
+
+      {# ───────── Passo 2: objetivo ───────── #}
+      <fieldset class="cr-step" data-step="2">
+        <legend>
+          <span class="cr-step-kicker">Passo 2 de 3</span>
+          <span class="cr-step-title">O que você quer treinar?</span>
+          <span class="cr-step-sub">O objetivo escolhe quais assuntos aparecem primeiro. Os demais entram depois.</span>
+        </legend>
+        <div class="cr-opts cr-opts-4">
+          {% for k in ordem_obj %}
+          {% set om = OBJ.get(k, {'ic': 'target', 'cor': 'geral', 'frase': '', 'treino': []}) %}
+          <label class="cr-opt cr-opt-obj o-{{ om.cor }}">
+            <input type="radio" name="objetivo" value="{{ k }}" required {% if sel_obj == k %}checked{% endif %} data-label="{{ opcoes.objetivos[k] }}" data-ic="{{ om.ic }}" data-cor="{{ om.cor }}">
+            <span class="cr-opt-card">
+              <span class="cr-opt-check" aria-hidden="true">{{ ic('check') }}</span>
+              <span class="cr-opt-ico">{{ ic(om.ic) }}</span>
+              <span class="cr-opt-nome">{{ opcoes.objetivos[k] }}</span>
+              {% if om.frase %}<span class="cr-opt-frase">{{ om.frase }}</span>{% endif %}
+              {% if om.treino %}
+              <span class="cr-opt-treino">
+                <span class="cr-opt-treino-t">O que você vai treinar</span>
+                <span class="cr-opt-lista">{% for t in om.treino %}<span>{{ t }}</span>{% endfor %}</span>
+              </span>
+              {% endif %}
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+        <div class="cr-step-nav cr-js-only">
+          <button type="button" class="btn btn-ghost" data-prev>{{ ic('arrow-left') }} Voltar</button>
+          <button type="button" class="btn btn-primary btn-lg" data-next disabled><span class="btn-label">Continuar</span> {{ ic('arrow-right') }}</button>
+        </div>
+      </fieldset>
+
+      {# ───────── Passo 3: tempo ───────── #}
+      <fieldset class="cr-step" data-step="3">
+        <legend>
+          <span class="cr-step-kicker">Passo 3 de 3</span>
+          <span class="cr-step-title">Quanto tempo você tem por dia?</span>
+          <span class="cr-step-sub">Constância vale mais que maratona. Escolha o que cabe na sua rotina.</span>
+        </legend>
+        <div class="cr-opts cr-opts-3">
+          {% for mn in opcoes.minutos %}
+          {% set mm = MIN.get(mn, {'nome': '', 'frase': ''}) %}
+          {% set est = (mn * 0.7)|round|int %}
+          <label class="cr-opt cr-opt-min" style="--pie:{{ ((mn / 60 * 100) if mn < 60 else 100)|round|int }}">
+            <input type="radio" name="minutos" value="{{ mn }}" required {% if sel_min|string == mn|string %}checked{% endif %} data-label="{{ mn }} min por dia" data-est="{{ est }}">
+            <span class="cr-opt-card">
+              <span class="cr-opt-check" aria-hidden="true">{{ ic('check') }}</span>
+              <span class="cr-pie" aria-hidden="true"><span class="cr-pie-in"><b>{{ mn }}</b><small>min</small></span></span>
+              {% if mm.nome %}<span class="cr-opt-nome">{{ mm.nome }}</span>{% endif %}
+              {% if mm.frase %}<span class="cr-opt-frase">{{ mm.frase }}</span>{% endif %}
+              <span class="cr-opt-est">≈ <b>{{ est }}</b> tópicos por mês</span>
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+        <div class="cr-step-nav cr-js-only">
+          <button type="button" class="btn btn-ghost" data-prev>{{ ic('arrow-left') }} Voltar</button>
+          <button type="button" class="btn btn-primary btn-lg" data-next disabled><span class="btn-label">Ver resumo</span> {{ ic('arrow-right') }}</button>
+        </div>
+      </fieldset>
+
+      {# ───────── Resumo + envio (sem JS: só o botão) ───────── #}
+      <div class="cr-step cr-step-final" data-step="4">
+        <div class="cr-sum cr-js-only">
+          <span class="cr-step-kicker">Tudo pronto</span>
+          <h2 class="cr-step-title" tabindex="-1" id="crResumoTitulo">Confira o seu plano</h2>
+          <ul class="cr-sum-list">
+            <li><span class="cr-sum-ico">{{ ic('sprout') }}</span><div><small>Nível</small><b data-sum="nivel">—</b></div><button type="button" class="cr-sum-edit" data-goto="1" aria-label="Editar nível">{{ ic('edit') }}</button></li>
+            <li><span class="cr-sum-ico">{{ ic('target') }}</span><div><small>Objetivo</small><b data-sum="objetivo">—</b></div><button type="button" class="cr-sum-edit" data-goto="2" aria-label="Editar objetivo">{{ ic('edit') }}</button></li>
+            <li><span class="cr-sum-ico">{{ ic('clock') }}</span><div><small>Tempo por dia</small><b data-sum="minutos">—</b></div><button type="button" class="cr-sum-edit" data-goto="3" aria-label="Editar tempo por dia">{{ ic('edit') }}</button></li>
+          </ul>
+          <p class="cr-sum-est" data-sum-est></p>
+        </div>
+        <div class="cr-final-nav">
+          <button type="button" class="btn btn-ghost cr-js-only" data-prev>{{ ic('arrow-left') }} Voltar</button>
+          <button type="submit" class="btn btn-primary btn-lg cr-submit" id="crEnviar">
+            <span class="spinner" aria-hidden="true"></span>{{ ic('flame') }} <span class="btn-label">{{ 'Salvar e atualizar meu cronograma' if perfil else 'Montar meu cronograma' }}</span>
+          </button>
+        </div>
+        {% if perfil %}<p class="cr-cancel"><a href="{{ url_for('cronograma.index') }}">Cancelar e voltar ao cronograma</a></p>{% endif %}
+      </div>
+    </form>
+
+    {# ficha ao vivo (só com JS) #}
+    <aside class="cr-sheet cr-js-only" aria-label="Seu plano até agora" id="crSheet" data-obj="">
+      <div class="cr-sheet-head">
+        <span class="cr-sheet-avatar" data-sheet-ico>{{ ic('flame') }}</span>
+        <div>
+          <small>Seu plano</small>
+          <b data-sheet-title>Em construção…</b>
+        </div>
+      </div>
+      <ul class="cr-sheet-list">
+        <li data-sheet="nivel"><span>Nível</span><b>—</b></li>
+        <li data-sheet="objetivo"><span>Objetivo</span><b>—</b></li>
+        <li data-sheet="minutos"><span>Por dia</span><b>—</b></li>
+      </ul>
+      <div class="cr-sheet-perks">
+        <p>{{ ic('target') }} <span>3 missões por dia: aquecimento, conteúdo novo e desafio</span></p>
+        <p>{{ ic('flame') }} <span>Sequência diária com bônus no baú</span></p>
+        <p>{{ ic('sparkles') }} <span>O plano se adapta ao que você acerta e erra</span></p>
+        <p>{{ ic('crown') }} <span>Boss da semana todo domingo</span></p>
+      </div>
+      {% if total_t %}<p class="cr-sheet-foot">{{ total_t }} tópicos em {{ total_modulos or 0 }} módulos esperam por você.</p>{% endif %}
+    </aside>
+
+  </div>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/cronograma.js') }}"></script>
+{% endblock %}

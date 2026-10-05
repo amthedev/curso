@@ -61,17 +61,21 @@
       <a href="{{ url_for('index') }}" class="nav-link {{ 'active' if _ep == 'index' and not _cat_ativa else '' }}" {% if _ep == 'index' and not _cat_ativa %}aria-current="page"{% endif %}>
         {{ ico('home') }}<span>Início</span>
       </a>
+      <a href="{{ url_for('cronograma.index') }}" class="nav-link nav-cron {{ 'active' if request.blueprint == 'cronograma' else '' }}" {% if request.blueprint == 'cronograma' %}aria-current="page"{% endif %}>
+        {{ ico('calendar') }}<span>Cronograma</span><em class="nav-new">novo</em>
+      </a>
       <a href="{{ url_for('atividades_index') }}" class="nav-link {{ 'active' if _ep in ('atividades_index', 'licao_detalhe') else '' }}" {% if _ep in ('atividades_index', 'licao_detalhe') %}aria-current="page"{% endif %}>
         {{ ico('target') }}<span>Atividades</span>
       </a>
       <a href="{{ url_for('ia.index') }}" class="nav-link nav-ia {{ 'active' if request.blueprint == 'ia' else '' }}" {% if request.blueprint == 'ia' %}aria-current="page"{% endif %}>
-        {{ ico('sparkles') }}<span>IA</span><em class="nav-new">novo</em>
+        {{ ico('sparkles') }}<span>IA</span>
       </a>
 
-      {#- Gamificação: só para quem está logado. -#}
+      {#- Gamificação: só para quem está logado. "Meu painel" fica no menu do
+          usuário no desktop e aparece aqui só no drawer mobile. -#}
       {% block nav_extra %}
       {% if usuario_atual %}
-      <a href="{{ url_for('aluno.painel') }}" class="nav-link nav-link-extra {{ 'active' if _ep == 'aluno.painel' else '' }}" {% if _ep == 'aluno.painel' %}aria-current="page"{% endif %}>
+      <a href="{{ url_for('aluno.painel') }}" class="nav-link nav-link-drawer {{ 'active' if _ep == 'aluno.painel' else '' }}" {% if _ep == 'aluno.painel' %}aria-current="page"{% endif %}>
         {{ ico('star') }}<span>Meu painel</span>
       </a>
       <a href="{{ url_for('aluno.ranking') }}" class="nav-link nav-link-extra {{ 'active' if _ep == 'aluno.ranking' else '' }}" {% if _ep == 'aluno.ranking' %}aria-current="page"{% endif %}>
@@ -211,6 +215,7 @@
         <h4>Navegação</h4>
         <ul>
           <li><a href="{{ url_for('index') }}">Início</a></li>
+          <li><a href="{{ url_for('cronograma.index') }}">Cronograma de estudos</a></li>
           <li><a href="{{ url_for('atividades_index') }}">Atividades</a></li>
           <li><a href="{{ url_for('ia.index') }}">Atividades com IA</a></li>
           <li><a href="{{ url_for('perfil_publico') }}">Sobre o autor</a></li>

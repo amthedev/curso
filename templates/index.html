@@ -23,10 +23,11 @@
     <div class="hero-copy">
       <span class="hero-eyebrow">Security Research &middot; Educacional</span>
       <h1>Domine segurança, redes e Linux <span class="grad-text">na prática.</span></h1>
-      <p class="hero-sub">Guias técnicos escritos por quem executa, laboratórios no terminal e atividades geradas por IA. Aprenda fazendo — sempre em ambiente controlado.</p>
+      <p class="hero-sub">Guias técnicos escritos por quem executa, um cronograma diário que se adapta ao seu ritmo, laboratórios no terminal e atividades geradas por IA. Aprenda fazendo — sempre em ambiente controlado.</p>
 
       <div class="hero-cta">
-        <a href="{{ url_for('atividades_index') }}" class="btn btn-primary btn-lg">{{ ico('target') }} Começar atividades</a>
+        <a href="{{ url_for('cronograma.index') }}" class="btn btn-primary btn-lg">{{ ico('calendar') }} Meu cronograma</a>
+        <a href="{{ url_for('atividades_index') }}" class="btn btn-outline btn-lg">{{ ico('target') }} Atividades</a>
         <a href="{{ url_for('ia.index') }}" class="btn btn-ai btn-lg">{{ ico('sparkles') }} Gerar atividade com IA</a>
       </div>
 

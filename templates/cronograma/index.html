@@ -1,0 +1,586 @@
+{% extends "base.html" %}
+{% from "_ui.html" import ico %}
+{#
+  Cronograma — treino diário.
+  Contexto: perfil, hoje, semana, streak, meta_semanal, adaptacao, modulos, mes, stats
+  (ver contrato). Ícones: usa ico() do _ui.html quando existe; senão, o sprite local #cr-i-*.
+#}
+
+{# Ícone: ico() do site quando existe; senão símbolo do sprite local #}
+{% macro ic(nome, cls='') -%}
+{%- if nome in ['home','target','sparkles','grid','user','search','chevron-down','arrow-right','arrow-left','arrow-up','x','eye','lock','clock','calendar','check','book','terminal','shield','bug','network','code','cpu','hash','info','alert','bulb','zap','file','star','trending','compass'] -%}
+{{ ico(nome, cls) }}
+{%- else -%}
+<svg class="ico {{ cls }}" aria-hidden="true" focusable="false"><use href="#cr-i-{{ nome }}"/></svg>
+{%- endif -%}
+{%- endmacro %}
+
+{% block title %}Meu cronograma — Allan Dev{% endblock %}
+{% block meta_desc %}Seu treino diário de cibersegurança: missões novas todo dia, no seu ritmo e adaptadas ao que você aprende.{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/cronograma.css') }}">
+{% endblock %}
+
+{% block content %}
+{# ───────────── valores derivados ───────────── #}
+{% set _nm = ((usuario_atual.nome if usuario_atual else '') or '') %}
+{% set nome1 = _nm.split()[0] if _nm.split() else '' %}
+{% set missoes = hoje.missoes or [] %}
+{% set bau = hoje.bau or {} %}
+{% set pendente = (hoje.status == 'pendente') or (missoes|length == 0) %}
+{% set ns = namespace(feitas=0, xp=0, xpg=0, atual=-1, min=0, boss=false) %}
+{% for m in missoes %}
+  {% if m.concluida %}{% set ns.feitas = ns.feitas + 1 %}{% elif ns.atual < 0 %}{% set ns.atual = loop.index0 %}{% endif %}
+  {% set ns.xp = ns.xp + (m.xp_total or 0) %}
+  {% set ns.xpg = ns.xpg + (m.xp_ganho or 0) %}
+  {% set ns.min = ns.min + (m.minutos or 0) %}
+  {% if m.tipo == 'boss' %}{% set ns.boss = true %}{% endif %}
+{% endfor %}
+{% set total_m = missoes|length %}
+{% set bau_estado = 'aberto' if bau.aberto else ('pronto' if bau.disponivel else 'bloqueado') %}
+{% set mult = streak.multiplicador or 1 %}
+{% set mult_txt = ('%.1f'|format(mult))|replace('.', ',') %}
+{% set tipo_icone = {'revisao': 'flame', 'novo': 'book', 'desafio': 'sword', 'boss': 'crown'} %}
+
+{# ───────────── sprite local (ícones que o _ui.html não tem) ───────────── #}
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="cr-i-flame" viewBox="0 0 24 24"><path d="M12 2.5c.8 3.2 4.5 4.8 4.5 9.2a4.5 4.5 0 0 1-9 0c0-1.8.9-3 2-4.1.2 1.3.9 2 1.7 2.2C10.6 8.8 10.4 5.5 12 2.5z"/></symbol>
+    <symbol id="cr-i-sword" viewBox="0 0 24 24"><path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/></symbol>
+    <symbol id="cr-i-crown" viewBox="0 0 24 24"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z"/><path d="M6 21.5h12"/></symbol>
+    <symbol id="cr-i-bolt" viewBox="0 0 24 24"><path d="M13 2 4.5 13.5H11L10 22l9-12h-6.5L13 2z"/></symbol>
+    <symbol id="cr-i-trophy" viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M17 5.5h3V7a3 3 0 0 1-3 3M7 5.5H4V7a3 3 0 0 0 3 3"/></symbol>
+    <symbol id="cr-i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 3.9 5.7 3.9 9s-1.3 6.3-3.9 9c-2.6-2.7-3.9-5.7-3.9-9S9.4 5.7 12 3z"/></symbol>
+    <symbol id="cr-i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4.5"/><path d="m11.2 11.8 8.8-8.8M16 7l3 3M14 9l2 2"/></symbol>
+    <symbol id="cr-i-cloud" viewBox="0 0 24 24"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 17.9 8.4 4.8 4.8 0 0 1 17.5 18H7z"/></symbol>
+    <symbol id="cr-i-server" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01M11 7.5h6M11 16.5h6"/></symbol>
+    <symbol id="cr-i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.7a3.5 3.5 0 0 1 0 6.6M18.5 14.5a6.5 6.5 0 0 1 3 5.5"/></symbol>
+    <symbol id="cr-i-sliders" viewBox="0 0 24 24"><path d="M4 6h9M19 6h1M4 12h3M13 12h7M4 18h11M21 18h-1"/><circle cx="16" cy="6" r="2.4"/><circle cx="10" cy="12" r="2.4"/><circle cx="18" cy="18" r="2.4"/></symbol>
+    <symbol id="cr-i-arrow-down" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="m5 12 7 7 7-7"/></symbol>
+    <symbol id="cr-i-minus" viewBox="0 0 24 24"><path d="M5 9h14M5 15h14"/></symbol>
+    <symbol id="cr-i-flag" viewBox="0 0 24 24"><path d="M5 21V4"/><path d="M5 4.5h12l-2.5 4 2.5 4H5"/></symbol>
+    <symbol id="cr-i-gem" viewBox="0 0 24 24"><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M9 3 7.5 9 12 21l4.5-12L15 3"/></symbol>
+    <symbol id="cr-i-sparkle" viewBox="0 0 24 24"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="m19 15 .9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></symbol>
+    <symbol id="cr-i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="cr-i-half" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/></symbol>
+    <symbol id="cr-i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></symbol>
+  </defs>
+</svg>
+
+<main class="wrap cr-page" id="crPagina">
+
+  {# ═════════════ HERO ═════════════ #}
+  <header class="cr-hero {{ 'is-on' if streak.atual else 'is-off' }}">
+    <div class="cr-hero-main">
+      <span class="cr-eyebrow">// seu cronograma · {{ perfil.objetivo_label }}</span>
+      <h1><span data-cr-saudacao>Olá</span>{% if nome1 %}, {{ nome1 }}{% endif %}<span class="cr-h1-dot">.</span></h1>
+      <p class="cr-hero-data">
+        {{ ic('calendar') }}
+        <time datetime="{{ hoje.data }}">{{ (hoje.data_label or '')|capitalize }}</time>
+        <span class="cr-dot" aria-hidden="true">·</span>
+        <span>{{ perfil.nivel }} · {{ perfil.minutos }} min por dia</span>
+      </p>
+
+      {% if pendente %}
+      <p class="cr-hero-lead">Seu treino de hoje está sendo montado. Já já você começa.</p>
+      {% elif hoje.status == 'concluido' or ns.feitas == total_m %}
+      <p class="cr-hero-lead is-ok">Treino de hoje concluído. {% if bau_estado == 'pronto' %}O baú do dia está esperando por você!{% elif bau_estado == 'aberto' %}Baú aberto — volte amanhã para um treino novo.{% else %}Boa!{% endif %}</p>
+      {% elif ns.feitas == 0 %}
+      <p class="cr-hero-lead">{{ total_m }} missões para hoje, cerca de {{ ns.min }} min no total. Vamos nessa?</p>
+      {% else %}
+      <p class="cr-hero-lead">Faltam {{ total_m - ns.feitas }} {{ 'missão' if total_m - ns.feitas == 1 else 'missões' }} para fechar o treino de hoje.</p>
+      {% endif %}
+
+      {% if not pendente %}
+      <div class="cr-hero-prog" role="group" aria-label="Progresso do treino de hoje: {{ ns.feitas }} de {{ total_m }} missões">
+        <ol class="cr-segs" aria-hidden="true">
+          {% for m in missoes %}<li class="{{ 'is-done' if m.concluida else ('is-now' if loop.index0 == ns.atual else '') }} t-{{ m.tipo }}"></li>{% endfor %}
+          <li class="cr-seg-bau {{ 'is-done' if bau_estado == 'aberto' else ('is-now' if bau_estado == 'pronto' else '') }}">{{ ic('gem') }}</li>
+        </ol>
+        <span class="cr-hero-prog-txt"><b>{{ ns.feitas }}/{{ total_m }}</b> missões · <b>{{ ns.xpg }}</b> / {{ ns.xp }} XP</span>
+      </div>
+      {% endif %}
+
+      <div class="cr-hero-links">
+        <a class="btn btn-outline btn-sm" href="{{ url_for('cronograma.index', editar=1) }}">{{ ic('sliders') }} Ajustar plano</a>
+        <a class="btn btn-ghost btn-sm" href="#arvore">{{ ic('layers') }} Árvore de habilidades</a>
+      </div>
+    </div>
+
+    <div class="cr-streak" role="group" aria-label="Sequência de {{ streak.atual }} {{ 'dia' if streak.atual == 1 else 'dias' }} seguidos">
+      <div class="cr-flame" aria-hidden="true">
+        <svg viewBox="0 0 120 140" focusable="false">
+          <defs>
+            <linearGradient id="crFlameA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd24a"/><stop offset=".55" stop-color="#ff8a2a"/><stop offset="1" stop-color="#e2411f"/></linearGradient>
+            <linearGradient id="crFlameB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3b0"/><stop offset="1" stop-color="#ffb62e"/></linearGradient>
+          </defs>
+          <ellipse class="cr-flame-halo" cx="60" cy="96" rx="46" ry="38"/>
+          <path class="cr-flame-out" d="M60 6c3 22 34 34 34 72 0 24-15 42-34 42S26 102 26 80c0-14 7-24 15-33 2 11 7 17 14 19C52 48 49 26 60 6z" fill="url(#crFlameA)"/>
+          <path class="cr-flame-mid" d="M60 52c2 13 20 21 20 44 0 15-9 24-20 24S40 111 40 97c0-9 4-15 9-20 1 6 4 10 8 11-2-12-1-24 3-36z" fill="url(#crFlameB)"/>
+          <path class="cr-flame-core" d="M60 88c1 7 9 11 9 20 0 7-4 11-9 11s-9-4-9-11c0-5 2-8 5-10 .5 3 2 4 3.5 4.5C58 98 58 93 60 88z" fill="#fffbe6"/>
+        </svg>
+      </div>
+      <div class="cr-streak-info">
+        <div class="cr-streak-num"><span data-count="{{ streak.atual }}">{{ streak.atual }}</span></div>
+        <div class="cr-streak-lbl">{{ 'dia seguido' if streak.atual == 1 else 'dias seguidos' }}</div>
+        <div class="cr-streak-chips">
+          <span class="cr-mult" title="Cada dia seguido soma +0,1 ao bônus do baú (máximo ×1,5)">{{ ic('bolt') }} ×{{ mult_txt }} <small>no baú</small></span>
+          <span class="cr-recorde" title="Sua maior sequência">{{ ic('trophy') }} Recorde: <b>{{ streak.recorde }}</b></span>
+        </div>
+        <div class="cr-pips" aria-hidden="true" title="Bônus do baú: +0,1 por dia de sequência (até 5 dias)">
+          {% for i in range(5) %}<i class="{{ 'is-on' if i < streak.atual else '' }}"></i>{% endfor %}
+        </div>
+        {% if not streak.atual %}<p class="cr-streak-hint">Termine as 3 missões hoje para acender a chama.</p>{% endif %}
+      </div>
+    </div>
+  </header>
+
+  {# ═════════════ GRID PRINCIPAL ═════════════ #}
+  <div class="cr-grid">
+
+    <div class="cr-col-main">
+
+      <section class="cr-sec" aria-labelledby="crTreinoTitulo">
+        <div class="cr-sec-head">
+          <h2 id="crTreinoTitulo">{{ ic('target') }} Treino de hoje</h2>
+          {% if not pendente %}<small>{{ ns.feitas }} de {{ total_m }} concluídas</small>{% endif %}
+        </div>
+
+        {% if pendente %}
+        {# ───── montando o treino do dia ───── #}
+        <div class="cr-scan" id="crScan" data-cr-gerar data-url="{{ url_for('cronograma.gerar_hoje') }}">
+          <div class="cr-radar" aria-hidden="true">
+            <svg viewBox="0 0 200 200" focusable="false">
+              <circle cx="100" cy="100" r="92" class="cr-radar-ring"/>
+              <circle cx="100" cy="100" r="66" class="cr-radar-ring"/>
+              <circle cx="100" cy="100" r="40" class="cr-radar-ring"/>
+              <path d="M100 8v184M8 100h184" class="cr-radar-cross"/>
+              <circle class="cr-blip b1" cx="144" cy="64" r="4"/>
+              <circle class="cr-blip b2" cx="62" cy="126" r="4"/>
+              <circle class="cr-blip b3" cx="120" cy="148" r="4"/>
+              <circle class="cr-blip b4" cx="78" cy="58" r="4"/>
+              <circle cx="100" cy="100" r="5" class="cr-radar-core"/>
+            </svg>
+            <span class="cr-radar-sweep"></span>
+          </div>
+          <div class="cr-scan-body">
+            <h3 id="crScanTitulo">Montando seu treino de hoje<span class="cr-dots" aria-hidden="true"></span></h3>
+            <p class="cr-scan-sub">Olhando o que você já domina e o que pede reforço para escolher as missões certas. Leva só alguns segundos.</p>
+            <div class="cr-term" aria-hidden="true">
+              <div class="cr-term-bar"><span class="tx-dots"><i></i><i></i><i></i></span><span>treino@seu-plano:~</span></div>
+              <div class="cr-term-body" data-cr-term>
+                <p class="cr-tl"><b>$</b> montar --treino hoje</p>
+                <p class="cr-tl">› lendo seu histórico de estudos</p>
+                <p class="cr-tl">› mapeando pontos fracos{% if adaptacao.pontos_fracos %}: <em>{{ adaptacao.pontos_fracos[:2]|join(', ') }}</em>{% endif %}</p>
+                <p class="cr-tl">› escolhendo o próximo tópico{% if adaptacao.proximo_topico %}: <em>{{ adaptacao.proximo_topico }}</em>{% endif %}</p>
+                <p class="cr-tl">› calibrando a dificuldade{% if adaptacao.dificuldade %}: <em>{{ adaptacao.dificuldade }}</em>{% endif %}</p>
+                <p class="cr-tl">› preparando as missões do dia</p>
+                <p class="cr-tl cr-tl-ok" data-cr-final>✔ treino pronto</p>
+              </div>
+            </div>
+            <div class="cr-scan-bar" role="progressbar" aria-label="Montando seu treino" aria-valuemin="0" aria-valuemax="100" aria-valuenow="8"><i style="--w:8%"></i></div>
+            <p class="cr-scan-status" role="status" aria-live="polite" data-cr-status>Começando…</p>
+            <div class="cr-scan-erro" data-cr-erro hidden role="alert">
+              <p data-cr-erro-msg>Não deu para montar seu treino agora. Tente de novo em instantes.</p>
+              <button type="button" class="btn btn-primary" data-cr-retry>{{ ic('zap') }} <span class="btn-label">Tentar de novo</span></button>
+            </div>
+            <noscript><p class="cr-scan-nojs">Seu treino ainda não foi montado. Ative o JavaScript do navegador e recarregue a página.</p></noscript>
+          </div>
+        </div>
+
+        {% else %}
+        {# ───── trilha de missões + baú ───── #}
+        {% if ns.boss and ns.feitas < total_m %}
+        <p class="cr-boss-aviso">{{ ic('crown') }} <span><b>Domingo de boss.</b> Derrote o desafio da semana — ele vale XP em dobro.</span></p>
+        {% endif %}
+
+        <ol class="cr-quests" id="crQuests">
+          {% for m in missoes %}
+          {% set estado = 'feita' if m.concluida else ('atual' if loop.index0 == ns.atual else 'bloqueada') %}
+          {% set icn = m.icone if m.icone in ['flame', 'book', 'sword', 'crown'] else tipo_icone.get(m.tipo, 'book') %}
+          {% set nota = m.nota %}
+          {% set nota_cls = '' if nota is none else ('nota-alta' if nota >= 80 else ('nota-media' if nota >= 50 else 'nota-baixa')) %}
+          <li class="cr-q t-{{ m.tipo }} is-{{ estado }}" style="--i:{{ loop.index0 }}" data-estado="{{ estado }}">
+            <div class="cr-q-node" aria-hidden="true">
+              <span class="cr-q-hex">{{ ic(icn) }}</span>
+              <span class="cr-q-badge">{% if estado == 'feita' %}{{ ic('check') }}{% elif estado == 'bloqueada' %}{{ ic('lock') }}{% else %}{{ loop.index }}{% endif %}</span>
+            </div>
+            <article class="cr-q-card" aria-labelledby="crQ{{ loop.index }}">
+              {% if m.tipo == 'boss' %}<span class="cr-q-ribbon">{{ ic('crown') }} Boss da semana · XP em dobro</span>{% endif %}
+              <div class="cr-q-main">
+                <span class="cr-q-rotulo">{{ m.rotulo }}</span>
+                <h3 id="crQ{{ loop.index }}">{{ m.titulo }}</h3>
+                {% if m.topico_titulo or m.modulo_titulo %}
+                <p class="cr-q-topico">{{ ic('book') }}
+                  <span>{% if m.topico_titulo %}{{ m.topico_titulo }}{% endif %}{% if m.topico_titulo and m.modulo_titulo %} <i class="cr-dot">·</i> {% endif %}{% if m.modulo_titulo %}<em>{{ m.modulo_titulo }}</em>{% endif %}</span>
+                </p>
+                {% endif %}
+                <ul class="cr-q-meta">
+                  <li>{{ ic('target') }} {{ m.questoes }} {{ 'questão' if m.questoes == 1 else 'questões' }}</li>
+                  <li>{{ ic('clock') }} {{ m.minutos }} min</li>
+                  <li class="cr-xp">{{ ic('bolt') }} {% if m.concluida and m.xp_ganho %}+{{ m.xp_ganho }}{% else %}+{{ m.xp_total }}{% endif %} XP</li>
+                </ul>
+              </div>
+              <div class="cr-q-side">
+                {% if estado == 'feita' %}
+                  <div class="cr-q-done"><span class="cr-q-check">{{ ic('check') }}</span>
+                    <div><b>Concluída</b>{% if nota is not none %}<span class="cr-nota {{ nota_cls }}">Nota {{ nota|round|int }}%</span>{% endif %}</div>
+                  </div>
+                  {% if m.url %}<a class="btn btn-ghost btn-sm cr-q-link" href="{{ m.url }}" aria-label="Rever missão: {{ m.titulo }}">Rever</a>{% endif %}
+                {% elif m.url %}
+                  {% if estado == 'atual' %}
+                  <a class="btn btn-primary cr-q-link" href="{{ m.url }}" aria-label="Começar missão: {{ m.titulo }}"><span class="btn-label">Começar</span> {{ ic('arrow-right') }}</a>
+                  {% else %}
+                  <span class="cr-q-trava">{{ ic('lock') }} Depois da anterior</span>
+                  <a class="btn btn-outline btn-sm cr-q-link" href="{{ m.url }}" aria-label="Abrir mesmo assim: {{ m.titulo }}">Abrir mesmo assim</a>
+                  {% endif %}
+                {% else %}
+                  <span class="cr-q-trava">{{ ic('clock') }} Em preparo</span>
+                {% endif %}
+              </div>
+            </article>
+          </li>
+          {% endfor %}
+
+          {# ── baú do dia: quarto "nó" da trilha ── #}
+          <li class="cr-q cr-q-bau-li is-{{ bau_estado }}" style="--i:{{ total_m }}">
+            <div class="cr-q-node" aria-hidden="true">
+              <span class="cr-q-hex">{{ ic('gem') }}</span>
+              <span class="cr-q-badge">{% if bau_estado == 'aberto' %}{{ ic('check') }}{% elif bau_estado == 'bloqueado' %}{{ ic('lock') }}{% else %}{{ ic('sparkle') }}{% endif %}</span>
+            </div>
+            <section class="cr-bau" id="crBau" data-estado="{{ bau_estado }}" data-url="{{ url_for('cronograma.abrir_bau') }}"
+                     data-mult="{{ mult }}" data-faltam="{{ total_m - ns.feitas }}" aria-labelledby="crBauTitulo">
+              <div class="cr-bau-stage" data-cr-bau-chest aria-hidden="true">
+                <span class="cr-bau-rays"></span>
+                <svg class="cr-chest" viewBox="0 0 200 176" focusable="false">
+                  <defs>
+                    <linearGradient id="crWood" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c0793c"/><stop offset="1" stop-color="#7d4521"/></linearGradient>
+                    <linearGradient id="crWoodLid" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d28a48"/><stop offset="1" stop-color="#9a5a2b"/></linearGradient>
+                    <linearGradient id="crGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff0a8"/><stop offset=".45" stop-color="#f5c542"/><stop offset="1" stop-color="#c58a14"/></linearGradient>
+                    <radialGradient id="crInside" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fffbe0"/><stop offset=".45" stop-color="#ffd54f"/><stop offset="1" stop-color="#e59a1a"/></radialGradient>
+                    <radialGradient id="crBeam" cx=".5" cy="1" r="1"><stop offset="0" stop-color="#fff3b0" stop-opacity=".95"/><stop offset="1" stop-color="#ffd54f" stop-opacity="0"/></radialGradient>
+                  </defs>
+                  <ellipse class="cr-chest-shadow" cx="100" cy="164" rx="76" ry="8"/>
+                  {# feixe de luz que sai do baú aberto #}
+                  <path class="cr-chest-beam" d="M62 88 38 8h124l-24 80z" fill="url(#crBeam)"/>
+                  {# corpo #}
+                  <g class="cr-chest-body">
+                    <rect x="30" y="84" width="140" height="74" rx="10" fill="url(#crWood)"/>
+                    <path d="M30 108h140M30 132h140" stroke="#5b3015" stroke-opacity=".35" stroke-width="2"/>
+                    <rect x="30" y="84" width="18" height="74" rx="6" fill="url(#crGold)"/>
+                    <rect x="152" y="84" width="18" height="74" rx="6" fill="url(#crGold)"/>
+                    <rect x="26" y="146" width="148" height="14" rx="6" fill="url(#crGold)"/>
+                    <circle cx="39" cy="96" r="2.6" fill="#8a5a0c"/><circle cx="39" cy="138" r="2.6" fill="#8a5a0c"/>
+                    <circle cx="161" cy="96" r="2.6" fill="#8a5a0c"/><circle cx="161" cy="138" r="2.6" fill="#8a5a0c"/>
+                  </g>
+                  {# interior luminoso (aparece com a tampa levantada) #}
+                  <g class="cr-chest-inside">
+                    <rect x="46" y="78" width="108" height="14" rx="5" fill="#3b1d0a"/>
+                    <rect x="52" y="76" width="96" height="12" rx="5" fill="url(#crInside)"/>
+                    <circle class="cr-coin c1" cx="76" cy="74" r="8" fill="url(#crGold)" stroke="#a06f10" stroke-width="1.5"/>
+                    <circle class="cr-coin c2" cx="102" cy="68" r="9" fill="url(#crGold)" stroke="#a06f10" stroke-width="1.5"/>
+                    <circle class="cr-coin c3" cx="127" cy="74" r="8" fill="url(#crGold)" stroke="#a06f10" stroke-width="1.5"/>
+                    <path class="cr-gem" d="M100 52l8 8-8 12-8-12z" fill="#58d6ff" stroke="#1d7fa8" stroke-width="1.5" stroke-linejoin="round"/>
+                  </g>
+                  {# tampa #}
+                  <g class="cr-chest-lid">
+                    <path d="M30 86V70C30 40 62 22 100 22s70 18 70 48v16z" fill="url(#crWoodLid)"/>
+                    <path d="M44 33c-8 8-14 20-14 37v16h18V38z" fill="url(#crGold)"/>
+                    <path d="M156 33c8 8 14 20 14 37v16h-18V38z" fill="url(#crGold)"/>
+                    <path d="M30 82h140v10H30z" fill="url(#crGold)"/>
+                    <path d="M54 36c14-8 38-12 62-8" stroke="#fff" stroke-opacity=".28" stroke-width="3" stroke-linecap="round" fill="none"/>
+                  </g>
+                  {# fecho dourado #}
+                  <g class="cr-chest-lock">
+                    <rect x="86" y="76" width="28" height="30" rx="6" fill="url(#crGold)" stroke="#a06f10" stroke-width="1.5"/>
+                    <circle cx="100" cy="88" r="4.5" fill="#4a2a0a"/><path d="M100 90v8" stroke="#4a2a0a" stroke-width="3.5" stroke-linecap="round"/>
+                  </g>
+                </svg>
+                <span class="cr-spark s1"></span><span class="cr-spark s2"></span><span class="cr-spark s3"></span><span class="cr-spark s4"></span>
+                <span class="cr-bau-cadeado">{{ ic('lock') }}</span>
+              </div>
+
+              <div class="cr-bau-body">
+                <span class="cr-q-rotulo">Recompensa do dia</span>
+                <h3 id="crBauTitulo" data-cr-bau-titulo>
+                  {%- if bau_estado == 'aberto' %}Baú aberto{% elif bau_estado == 'pronto' %}O baú está pronto!{% else %}Baú do dia{% endif -%}
+                </h3>
+                <p class="cr-bau-txt" data-cr-bau-txt>
+                  {%- if bau_estado == 'aberto' %}Você já pegou a recompensa de hoje. Amanhã tem outro treino e outro baú.
+                  {%- elif bau_estado == 'pronto' %}Missões completas. Seu bônus de sequência (×{{ mult_txt }}) multiplica o XP do baú.
+                  {%- else %}Complete as {{ total_m }} missões para destrancar. {% if streak.atual %}Sua sequência dá ×{{ mult_txt }} de bônus.{% endif %}{% endif -%}
+                </p>
+
+                <div class="cr-bau-acao">
+                  {% if bau_estado == 'bloqueado' %}
+                  <div class="cr-bau-pips" aria-label="{{ ns.feitas }} de {{ total_m }} missões concluídas">
+                    {% for m in missoes %}<i class="{{ 'is-on' if m.concluida else '' }}"></i>{% endfor %}
+                    <span>Faltam {{ total_m - ns.feitas }}</span>
+                  </div>
+                  {% elif bau_estado == 'pronto' %}
+                  <button type="button" class="btn btn-primary btn-lg cr-bau-btn" data-cr-bau-abrir>
+                    <span class="spinner" aria-hidden="true"></span>{{ ic('gem') }} <span class="btn-label">Abrir baú</span>
+                  </button>
+                  {% endif %}
+                </div>
+
+                <div class="cr-premio" data-cr-premio {% if bau_estado != 'aberto' %}hidden{% endif %}>
+                  {% if bau_estado == 'aberto' %}
+                  <div class="cr-premio-xp"><b>+{{ bau.xp or 0 }}</b> XP</div>
+                  <p class="cr-premio-obs">Já somado ao seu total.</p>
+                  {% endif %}
+                </div>
+                <p class="cr-bau-erro" data-cr-bau-erro role="alert" hidden></p>
+                <p class="cr-sr" role="status" aria-live="polite" data-cr-bau-sr></p>
+              </div>
+            </section>
+          </li>
+        </ol>
+        {% endif %}
+      </section>
+    </div>
+
+    <aside class="cr-col-side" aria-label="Seu plano e sua semana">
+
+      {# ───── Seu plano se adaptou ───── #}
+      {% set aj = adaptacao.ajuste or 'inicio' %}
+      {% set aj_icone = {'subiu': 'arrow-up', 'desceu': 'arrow-down', 'manteve': 'minus', 'inicio': 'flag'}.get(aj, 'minus') %}
+      {% set aj_titulo = {'subiu': 'O plano subiu de nível', 'desceu': 'O plano ficou mais leve', 'manteve': 'O plano segue no mesmo ritmo', 'inicio': 'Plano calibrado para você'}.get(aj, 'Seu plano se adaptou') %}
+      {% set dif_n = {'Iniciante': 1, 'Intermediário': 2, 'Avançado': 3}.get(adaptacao.dificuldade, 1) %}
+      <section class="cr-card cr-adapt aj-{{ aj }}" aria-labelledby="crAdaptTitulo">
+        <div class="cr-sec-head">
+          <h2 id="crAdaptTitulo">{{ ic('sparkle') }} Seu plano se adaptou</h2>
+        </div>
+        <div class="cr-adapt-top">
+          <span class="cr-adapt-ico">{{ ic(aj_icone) }}</span>
+          <div>
+            <b>{{ aj_titulo }}</b>
+            <p>{{ adaptacao.motivo }}</p>
+          </div>
+        </div>
+        <dl class="cr-adapt-dl">
+          <div>
+            <dt>Dificuldade atual</dt>
+            <dd><span class="cr-sinal n{{ dif_n }}" aria-hidden="true"><i></i><i></i><i></i></span> {{ adaptacao.dificuldade }}</dd>
+          </div>
+          {% if adaptacao.proximo_topico %}
+          <div>
+            <dt>Próximo tópico</dt>
+            <dd>{{ ic('book') }} {{ adaptacao.proximo_topico }}</dd>
+          </div>
+          {% endif %}
+        </dl>
+        <div class="cr-fracos">
+          <span class="cr-fracos-lbl">Reforçando</span>
+          {% if adaptacao.pontos_fracos %}
+          <ul class="cr-chips" aria-label="Pontos fracos em reforço">
+            {% for p in adaptacao.pontos_fracos %}<li class="cr-chip is-fraco">{{ p }}</li>{% endfor %}
+          </ul>
+          {% else %}
+          <p class="cr-fracos-vazio">Nenhum ponto fraco por enquanto. Continue assim.</p>
+          {% endif %}
+        </div>
+      </section>
+
+      {# ───── Semana ───── #}
+      {% set mp = meta_semanal.pct or 0 %}
+      {% set mp = 100 if mp > 100 else mp %}
+      <section class="cr-card cr-week" aria-labelledby="crSemanaTitulo">
+        <div class="cr-sec-head">
+          <h2 id="crSemanaTitulo">{{ ic('calendar') }} Sua semana</h2>
+          <small>{{ meta_semanal.feitas }} de {{ meta_semanal.meta }} dias</small>
+        </div>
+
+        <div class="cr-meta">
+          <div class="cr-ring {{ 'is-full' if mp >= 100 else '' }}" role="img" aria-label="Meta semanal: {{ meta_semanal.feitas }} de {{ meta_semanal.meta }} dias ({{ mp }}%)">
+            <svg viewBox="0 0 120 120" focusable="false" aria-hidden="true">
+              <circle class="cr-ring-bg" cx="60" cy="60" r="52"/>
+              <circle class="cr-ring-fg" cx="60" cy="60" r="52" pathLength="100" style="--p:{{ mp }}"/>
+            </svg>
+            <span class="cr-ring-txt"><b>{{ meta_semanal.feitas }}</b><small>/ {{ meta_semanal.meta }}</small></span>
+          </div>
+          <div class="cr-meta-txt">
+            <b>Meta semanal</b>
+            {% if mp >= 100 %}
+            <p>Meta batida! Cada dia extra é bônus.</p>
+            {% elif meta_semanal.meta - meta_semanal.feitas == 1 %}
+            <p>Falta <b>1 dia</b> para bater a meta.</p>
+            {% else %}
+            <p>Faltam <b>{{ meta_semanal.meta - meta_semanal.feitas }} dias</b> para bater a meta.</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <ol class="cr-days">
+          {% for d in semana %}
+          {% set st = d.status %}
+          {% if st == 'hoje' %}
+            {% set st_vis = 'concluido' if (hoje.status == 'concluido' or (total_m > 0 and ns.feitas == total_m)) else ('parcial' if ns.feitas > 0 else 'hoje') %}
+          {% else %}
+            {% set st_vis = st %}
+          {% endif %}
+          {% set st_txt = {'concluido': 'treino concluído', 'parcial': 'treino parcial', 'perdido': 'dia perdido', 'hoje': 'hoje', 'futuro': 'ainda vai chegar'}.get(st_vis, '') %}
+          <li class="cr-day is-{{ st_vis }}{{ ' is-today' if st == 'hoje' else '' }}" style="--i:{{ loop.index0 }}"
+              aria-label="{{ d.dia_curto }} {{ d.dia_num }}: {{ st_txt }}{% if d.xp %}, {{ d.xp }} XP{% endif %}{% if st == 'hoje' %} (hoje){% endif %}"
+              title="{{ d.dia_curto }} {{ d.dia_num }}: {{ st_txt }}{% if d.xp %} · {{ d.xp }} XP{% endif %}">
+            <span class="cr-day-nome">{{ d.dia_curto }}</span>
+            <span class="cr-day-mark" aria-hidden="true">
+              {%- if st_vis == 'concluido' %}{{ ic('check') }}
+              {%- elif st_vis == 'parcial' %}{{ ic('half') }}
+              {%- elif st_vis == 'perdido' %}{{ ic('x') }}
+              {%- elif st_vis == 'hoje' %}<i class="cr-day-now"></i>
+              {%- else %}<i class="cr-day-fut"></i>{% endif -%}
+            </span>
+            <span class="cr-day-num">{{ d.dia_num }}</span>
+            <span class="cr-day-xp" aria-hidden="true">{% if d.xp %}+{{ d.xp }}{% else %}&nbsp;{% endif %}</span>
+          </li>
+          {% endfor %}
+        </ol>
+        <p class="cr-legenda" aria-hidden="true">
+          <span><i class="lg lg-ok"></i> feito</span><span><i class="lg lg-par"></i> parcial</span><span><i class="lg lg-perd"></i> perdido</span>
+        </p>
+      </section>
+    </aside>
+  </div>
+
+  {# ═════════════ JORNADA: stats + heatmap ═════════════ #}
+  {% set zh = namespace(lead=0, ok=0) %}
+  {% set _d0 = (mes[0].data if mes else '') %}
+  {% if _d0|length == 10 %}
+    {% set zy = _d0[0:4]|int %}{% set zm = _d0[5:7]|int %}{% set zd = _d0[8:10]|int %}
+    {% if zm < 3 %}{% set zm = zm + 12 %}{% set zy = zy - 1 %}{% endif %}
+    {% set zk = zy % 100 %}{% set zj = zy // 100 %}
+    {% set zw = (zd + (13 * (zm + 1)) // 5 + zk + zk // 4 + zj // 4 + 5 * zj) % 7 %}
+    {% set zh.lead = (zw + 5) % 7 %}
+  {% endif %}
+  {% for c in mes %}{% if c.nivel >= 4 %}{% set zh.ok = zh.ok + 1 %}{% endif %}{% endfor %}
+  <section class="cr-card cr-jornada" aria-labelledby="crJornadaTitulo">
+    <div class="cr-sec-head">
+      <h2 id="crJornadaTitulo">{{ ic('trending') }} Sua jornada</h2>
+      <small>últimos {{ mes|length }} dias</small>
+    </div>
+    <div class="cr-jornada-grid">
+      <div class="cr-hm-wrap">
+        <div class="cr-hm" data-hm-info="crHmInfo" role="img" aria-label="Calendário de treino dos últimos {{ mes|length }} dias: {{ zh.ok }} {{ 'dia completo' if zh.ok == 1 else 'dias completos' }}">
+          <div class="cr-hm-rows" aria-hidden="true"><span>seg</span><span></span><span>qua</span><span></span><span>sex</span><span></span><span>dom</span></div>
+          <div class="cr-hm-cells">
+            {% for _ in range(zh.lead) %}<i class="cr-hm-cell is-vazio" aria-hidden="true"></i>{% endfor %}
+            {% for c in mes %}
+            {% set rot = 'treino completo' if c.nivel >= 4 else ('treino parcial' if c.nivel > 0 else 'sem treino') %}
+            <span class="cr-hm-cell{{ ' is-hoje' if loop.last else '' }}" data-n="{{ c.nivel }}" style="--i:{{ loop.index0 }}"
+                  data-info="{{ c.data[8:10] }}/{{ c.data[5:7] }} — {{ rot }}" title="{{ c.data[8:10] }}/{{ c.data[5:7] }} — {{ rot }}"><span>{{ c.data[8:10]|int }}</span></span>
+            {% endfor %}
+          </div>
+        </div>
+        <p class="cr-hm-info" id="crHmInfo" aria-live="polite">Toque num dia para ver os detalhes.</p>
+        <p class="cr-hm-leg" aria-hidden="true">menos <i class="cr-hm-cell" data-n="0"></i><i class="cr-hm-cell" data-n="1"></i><i class="cr-hm-cell" data-n="2"></i><i class="cr-hm-cell" data-n="3"></i><i class="cr-hm-cell" data-n="4"></i> mais</p>
+      </div>
+
+      <div class="cr-stats">
+        <div class="cr-stat s-dias">
+          <span class="cr-stat-ico">{{ ic('calendar') }}</span>
+          <b data-count="{{ stats.dias_concluidos }}">{{ stats.dias_concluidos }}</b>
+          <span>{{ 'dia concluído' if stats.dias_concluidos == 1 else 'dias concluídos' }}</span>
+        </div>
+        <div class="cr-stat s-questoes">
+          <span class="cr-stat-ico">{{ ic('target') }}</span>
+          <b data-count="{{ stats.questoes_respondidas }}">{{ stats.questoes_respondidas }}</b>
+          <span>questões respondidas</span>
+        </div>
+        <div class="cr-stat s-acerto">
+          <span class="cr-stat-ico">{{ ic('check') }}</span>
+          {% if stats.acerto_pct is none %}<b>—</b>{% else %}<b><span data-count="{{ stats.acerto_pct }}">{{ stats.acerto_pct }}</span><small>%</small></b>{% endif %}
+          <span>de acerto</span>
+        </div>
+        <div class="cr-stat s-topicos">
+          <span class="cr-stat-ico">{{ ic('book') }}</span>
+          <b><span data-count="{{ stats.topicos_vistos }}">{{ stats.topicos_vistos }}</span><small>/ {{ stats.topicos_total }}</small></b>
+          <span>tópicos vistos</span>
+          <div class="cr-bar" aria-hidden="true"><i style="--w:{{ (stats.topicos_vistos / stats.topicos_total * 100)|round|int if stats.topicos_total else 0 }}%"></i></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {# ═════════════ ÁRVORE DE HABILIDADES ═════════════ #}
+  {% set tc = namespace(total=0, dominado=0, aprendendo=0, fraco=0, novo=0) %}
+  {% for md in modulos %}{% for t in md.topicos %}
+    {% set tc.total = tc.total + 1 %}
+    {% if t.status == 'dominado' %}{% set tc.dominado = tc.dominado + 1 %}
+    {% elif t.status == 'aprendendo' %}{% set tc.aprendendo = tc.aprendendo + 1 %}
+    {% elif t.status == 'fraco' %}{% set tc.fraco = tc.fraco + 1 %}
+    {% else %}{% set tc.novo = tc.novo + 1 %}{% endif %}
+  {% endfor %}{% endfor %}
+  {% set status_txt = {'dominado': 'dominado', 'aprendendo': 'aprendendo', 'fraco': 'precisa de reforço', 'novo': 'ainda não visto'} %}
+
+  <section class="cr-sec cr-tree" id="arvore" aria-labelledby="crArvoreTitulo" data-cr-arvore>
+    <div class="cr-sec-head">
+      <h2 id="crArvoreTitulo">{{ ic('layers') }} Árvore de habilidades</h2>
+      <small>{{ tc.dominado }} de {{ tc.total }} tópicos dominados</small>
+    </div>
+    <p class="cr-tree-sub">Cada nó tem 5 segmentos: quanto mais cheio, maior o seu domínio do tópico. Passe o mouse (ou toque) para ver o status.</p>
+
+    <div class="cr-filtros" role="group" aria-label="Filtrar tópicos por status">
+      <button type="button" class="cr-fil is-on" data-fil="todos" aria-pressed="true">Todos <b>{{ tc.total }}</b></button>
+      <button type="button" class="cr-fil f-dominado" data-fil="dominado" aria-pressed="false"><i></i>Dominados <b>{{ tc.dominado }}</b></button>
+      <button type="button" class="cr-fil f-aprendendo" data-fil="aprendendo" aria-pressed="false"><i></i>Aprendendo <b>{{ tc.aprendendo }}</b></button>
+      <button type="button" class="cr-fil f-fraco" data-fil="fraco" aria-pressed="false"><i></i>Reforçar <b>{{ tc.fraco }}</b></button>
+      <button type="button" class="cr-fil f-novo" data-fil="novo" aria-pressed="false"><i></i>Novos <b>{{ tc.novo }}</b></button>
+    </div>
+    <p class="cr-fil-vazio" data-cr-fil-vazio role="status" aria-live="polite" hidden>Nenhum tópico com esse filtro por enquanto.</p>
+
+    {# aberto de início: o primeiro módulo que ainda não foi totalmente dominado #}
+    {% set ab = namespace(idx=-1) %}
+    {% for md in modulos %}{% if ab.idx < 0 and md.pct < 100 %}{% set ab.idx = loop.index0 %}{% endif %}{% endfor %}
+    <div class="cr-mods">
+      {% for coluna in [0, 1] %}
+      <div class="cr-mods-col">
+      {% for md in modulos %}{% if loop.index0 % 2 == coluna %}
+      {% set abrir = (loop.index0 == ab.idx) %}
+      <details class="cr-mod {{ 'is-completo' if md.pct >= 100 else '' }}" {% if abrir %}open{% endif %} data-mod style="--i:{{ loop.index0 }};--o:{{ loop.index0 }}">
+        <summary>
+          <span class="cr-mod-ico">{{ ic(md.icone or 'file') }}</span>
+          <span class="cr-mod-info">
+            <b>{{ md.titulo }}</b>
+            {% if md.descricao %}<small>{{ md.descricao }}</small>{% endif %}
+          </span>
+          <span class="cr-mod-prog">
+            <span class="cr-mod-count"><b>{{ md.dominados }}</b>/{{ md.total }}</span>
+            <span class="cr-bar" role="progressbar" aria-label="Progresso em {{ md.titulo }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ md.pct }}"><i style="--w:{{ md.pct }}%"></i></span>
+          </span>
+          <span class="cr-mod-chev" aria-hidden="true">{{ ic('chevron-down') }}</span>
+        </summary>
+        <ul class="cr-nodes">
+          {% for t in md.topicos %}
+          {% set dm = t.dominio if t.dominio is not none else 0 %}
+          {% set dm = 5 if dm > 5 else (0 if dm < 0 else dm) %}
+          {% set txt = status_txt.get(t.status, 'ainda não visto') %}
+          <li class="cr-node st-{{ t.status }}" style="--d:{{ dm }}" data-status="{{ t.status }}" tabindex="0"
+              title="{{ t.titulo }} — {{ txt }} (domínio {{ dm }} de 5)" aria-label="{{ t.titulo }}: {{ txt }}, domínio {{ dm }} de 5">
+            <span class="cr-node-fig" aria-hidden="true">
+              <span class="cr-node-ring"></span>
+              <span class="cr-node-core">
+                {%- if t.status == 'dominado' %}{{ ic('check') }}
+                {%- elif t.status == 'fraco' %}{{ ic('alert') }}
+                {%- elif t.status == 'novo' %}{{ ic('lock') }}
+                {%- else %}{{ dm }}{% endif -%}
+              </span>
+            </span>
+            <span class="cr-node-nome">{{ t.titulo }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </details>
+      {% endif %}{% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/cronograma.js') }}"></script>
+{% endblock %}
