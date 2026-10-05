@@ -43,7 +43,7 @@
 {% if t.foco is none %}
   {% for c in cards %}{% if t.foco is none and not c.concluida %}{% set t.foco = c %}{% endif %}{% endfor %}
 {% endif %}
-{% set primeiro_nome = (usuario_atual.nome.split(' ')[0]) if usuario_atual else 'aluno' %}
+{% set primeiro_nome = (usuario_atual.nome.split(' ')[0] | capitalize) if usuario_atual and usuario_atual.nome else 'aluno' %}
 
 {# ───────────── HERO ───────────── #}
 <section class="at-hero">

@@ -474,6 +474,7 @@
       body: JSON.stringify({ missao: id }),
     }).then(function (r) { return r.json(); })
       .then(function (data) {
+        if (window.gamificacaoProcessar) window.gamificacaoProcessar(data); // +XP, nível e conquistas
         if (data && data.concluida) {
           var box = document.getElementById("labConcluido");
           if (box) {
@@ -613,5 +614,5 @@
   print("");
   updatePrompt();
   atualizarBarra();
-  setTimeout(function () { inputEl.focus(); }, 400);
+  setTimeout(function () { inputEl.focus({ preventScroll: true }); }, 400);
 })();

@@ -1070,8 +1070,8 @@ Esta atividade foi montada pelo **modo demo** (`IA_MOCK=1`), sem chamar a IA —
 - **Defesa em profundidade**: prepared statements contra SQLi, CSP contra XSS e menor privilégio em tudo.
 
 ```bash
-nmap -sV 10.10.10.5
-ls -la
+nmap -p- --min-rate 1000 10.10.10.5   # todas as portas TCP
+ss -tulpn                             # o que está escutando na sua máquina
 ```
 
 > Pratique sempre em laboratório próprio ou plataformas autorizadas."""

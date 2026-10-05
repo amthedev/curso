@@ -638,9 +638,9 @@
           h += '<li class="ia-rev-item"><button type="button" class="ia-rev-ir" data-ir="' + esc(e.id) + '">Questão ' + (q ? q.idx + 1 : "") + "</button>" +
             '<p class="ia-rev-enun">' + fmt(e.enunciado) + "</p>" +
             '<div class="ia-rev-linhas">' +
-              '<p class="ia-rev-sua"><span>Sua resposta</span>' + (e.sua_resposta ? fmt(e.sua_resposta) : "<em>—</em>") +
+              '<p class="ia-rev-sua"><span>Sua resposta</span>' + (e.sua_resposta ? (e.tipo === "comando" ? "<code>" + esc(e.sua_resposta) + "</code>" : fmt(e.sua_resposta)) : "<em>—</em>") +
                 (e.pontuacao ? " <small>(" + e.pontuacao + "/100)</small>" : "") + "</p>" +
-              '<p class="ia-rev-certa"><span>Resposta certa</span>' + fmt(e.gabarito) + "</p>" +
+              '<p class="ia-rev-certa"><span>Resposta certa</span>' + (e.tipo === "comando" ? "<code>" + esc(e.gabarito) + "</code>" : fmt(e.gabarito)) + "</p>" +
             "</div>" +
             (e.explicacao ? '<p class="ia-rev-exp">' + fmt(e.explicacao) + "</p>" : "") +
             "</li>";

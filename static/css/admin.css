@@ -273,8 +273,8 @@ th.col-acoes { text-align: right; }
 .form-panel { max-width: 760px; }
 .admin-form { display: flex; flex-direction: column; gap: 18px; }
 .form-row { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.form-row-split { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-.form-row-split-wide { grid-template-columns: 1fr 180px; }
+.form-row-split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.form-row-split-wide { grid-template-columns: minmax(0, 1fr) 180px; }
 .form-row label, .pf-field label { font-size: .82rem; font-weight: 600; color: var(--text-2); }
 .form-hint { font-weight: 400; color: var(--text-3); font-size: .76rem; }
 .req { color: var(--danger); font-weight: 700; }
@@ -379,8 +379,8 @@ input[type="date"] { color-scheme: dark; }
 /* ── Responsivo ── */
 @media (max-width: 1180px) {
   .stat-grid, .admin-quick { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .admin-grid-2 { grid-template-columns: 1fr; }
-  .perfil-grid { grid-template-columns: 1fr; }
+  .admin-grid-2 { grid-template-columns: minmax(0, 1fr); }
+  .perfil-grid { grid-template-columns: minmax(0, 1fr); }
   .perfil-preview { position: static; order: -1; max-width: 420px; }
 }
 
@@ -400,7 +400,7 @@ input[type="date"] { color-scheme: dark; }
   .pf-seg-split { display: none !important; }
   .pf-toolbar-note { display: none; }
   .pf-pane { height: 440px; }
-  .pf-row-3 { grid-template-columns: 1fr 1fr; }
+  .pf-row-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pf-row-3 > :last-child { grid-column: 1 / -1; }
 }
 
@@ -419,19 +419,21 @@ input[type="date"] { color-scheme: dark; }
   .stat-card { padding: 14px; }
   .stat-value { font-size: 1.7rem; }
   .stat-go { display: none; }
-  .admin-quick { grid-template-columns: 1fr; }
+  .admin-quick { grid-template-columns: minmax(0, 1fr); }
   .admin-panel { padding: 16px; }
   .admin-panel-flush { padding: 0; }
   .admin-toolbar { padding: 14px; }
   .admin-search { max-width: none; }
   .admin-chips { padding: 0 14px 14px; }
-  .form-row-split, .form-row-split-wide, .pf-row-2, .pf-row-3 { grid-template-columns: 1fr; }
+  .form-row-split, .form-row-split-wide, .pf-row-2, .pf-row-3 { grid-template-columns: minmax(0, 1fr); }
   .pf-head .pf-stats { order: 3; flex-basis: 100%; }
   .pf-seg { width: 100%; }
   .pf-seg button { flex: 1; justify-content: center; }
   .pf-actionbar { bottom: 10px; padding: 10px; flex-wrap: wrap; }
   .pf-dirty { flex-basis: 100%; }
-  .pf-actionbar .btn { flex: 1; }
+  .pf-actionbar .btn { padding-left: 14px; padding-right: 14px; }
+  .pf-actionbar .btn-primary { flex: 1; }
+  .pf-actionbar .btn-outline { flex: none; }
   .pf-actionbar-spacer { display: none; }
   .pf-toolbar button { width: 32px; height: 32px; }
   .pf-sep { display: none; }

@@ -20,6 +20,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from core import DB_PATH, close_db, get_db, login_requerido
 from ia_routes import bp as ia_bp, init_ia_db, registrar_admin as registrar_admin_ia, resumo_ia_usuario
+import gamificacao as gami
+from aluno_routes import bp as aluno_bp
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-troque-em-producao")
@@ -27,6 +29,7 @@ app.permanent_session_lifetime = timedelta(days=30)
 app.teardown_appcontext(close_db)
 app.register_blueprint(ia_bp)
 registrar_admin_ia(app)  # /painel-allan-dev/ia  (endpoint "admin_ia")
+app.register_blueprint(aluno_bp)  # /eu, /ranking, /api/eu/stats
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +109,8 @@ def init_db():
         _seed(db)
     _seed_licoes(db)
     init_ia_db(db)
+    gami.init_gamificacao_db(db)  # depois de usuarios/licoes/ia_*
+    gami.backfill(db)             # idempotente: converte progresso antigo em xp_eventos
     db.close()
 
 
@@ -444,7 +449,7 @@ def atividades_index():
         "atividades/index.html",
         cards=cards,
         xp_usuario=xp_usuario,
-        xp_total_geral=xp_usuario + ia_stats["xp"],
+        xp_total_geral=gami.xp_total(db, uid),  # XP unificado (inclui bônus de trilha e IA)
         ia_stats=ia_stats,
         ia_recentes=ia_recentes,
         perfil=get_perfil(),
@@ -523,6 +528,12 @@ def licao_progresso(slug):
     )
     db.commit()
 
+    # Gamificação: XP idempotente por (usuário, missão); +bônus ao concluir a trilha.
+    eventos = [("missao", f"{slug}:{missao_id}", validas[missao_id].get("xp", 0))]
+    if concluida:
+        eventos.append(("licao_concluida", slug, gami.BONUS_LICAO))
+    recompensa = gami.recompensar(db, session["uid"], eventos)
+
     xp_ganho = sum(m.get("xp", 0) for m in missoes if m["id"] in feitas)
     xp_total = sum(m.get("xp", 0) for m in missoes)
     return {
@@ -531,6 +542,7 @@ def licao_progresso(slug):
         "xp_ganho": xp_ganho,
         "xp_total": xp_total,
         "concluida": concluida,
+        **recompensa,  # xp_ganho_agora, xp_total_usuario, nivel, subiu_nivel, streak, novas_conquistas
     }
 
 

@@ -683,7 +683,7 @@ body.ia-travado { overflow: hidden; }
   padding-top: 26px;
   padding-bottom: 80px;
 }
-.ia-ver-side { position: sticky; top: 80px; }
+.ia-ver-side { position: sticky; top: calc(var(--header-h, 62px) + 16px); }
 .ia-painel { padding: 18px; }
 .ia-painel-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .ia-painel-prog { display: flex; flex-direction: column; }
@@ -784,7 +784,7 @@ body.ia-travado { overflow: hidden; }
   background: linear-gradient(180deg, var(--bg-2), var(--bg-1));
   box-shadow: var(--shadow-sm);
   outline: none;
-  scroll-margin-top: 84px;
+  scroll-margin-top: calc(var(--header-h, 62px) + 20px);
   animation: ia-entra .35s ease-out;
   transition: border-color .3s;
 }
@@ -1072,7 +1072,7 @@ body.ia-travado { overflow: hidden; }
 .ia-final {
   padding: 26px;
   outline: none;
-  scroll-margin-top: 84px;
+  scroll-margin-top: calc(var(--header-h, 62px) + 20px);
   border-color: var(--border-hi);
   background:
     radial-gradient(500px 220px at 0% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%),
@@ -1200,7 +1200,8 @@ body.ia-travado { overflow: hidden; }
   .ia-hist-list { max-height: none; }
 
   .ia-ver { grid-template-columns: 1fr; gap: 18px; padding-top: 18px; }
-  .ia-ver-side { position: sticky; top: 62px; z-index: 50; margin: 0 -24px; }
+  .ia-ver-side { position: sticky; top: var(--header-h, 62px); z-index: 50; margin: 0 -24px; }
+  .ia-q, .ia-final { scroll-margin-top: calc(var(--header-h, 62px) + 120px); }
   .ia-painel {
     border-radius: 0; border-left: 0; border-right: 0;
     padding: 10px 24px 12px;
@@ -1218,7 +1219,7 @@ body.ia-travado { overflow: hidden; }
   .ia-qnav {
     grid-area: nav;
     display: flex; gap: 6px;
-    overflow-x: auto; margin: 0 -4px; padding: 2px 4px 4px;
+    overflow-x: auto; margin: -4px -6px 0; padding: 6px 6px 6px;
     scrollbar-width: none;
   }
   .ia-qnav::-webkit-scrollbar { display: none; }

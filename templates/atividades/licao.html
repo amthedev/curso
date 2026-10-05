@@ -12,7 +12,7 @@
 {% set total_missoes = missoes | length %}
 {% set g = namespace(xp=0, prox=none) %}
 {% for m in missoes %}
-  {% if m.id in missoes_feitas %}{% set g.xp = g.xp + m.xp %}
+  {% if m.id in missoes_feitas %}{% set g.xp = g.xp + (m.xp or 0) %}
   {% elif g.prox is none %}{% set g.prox = m.id %}{% endif %}
 {% endfor %}
 {% set pct_missoes = ((missoes_feitas | length) / total_missoes * 100) | round | int if total_missoes else 0 %}
@@ -161,17 +161,19 @@
           <div class="missoes" id="missoes">
             {% for m in missoes %}
             {% set feita = m.id in missoes_feitas %}
-            <div class="missao {{ 'missao-feita missao-pronta' if feita else '' }} {{ 'missao-atual' if (not feita and m.id == g.prox) else '' }}" id="missao-{{ m.id }}" data-missao="{{ m.id }}" data-xp="{{ m.xp }}">
+            <div class="missao {{ 'missao-feita missao-pronta' if feita else '' }} {{ 'missao-atual' if (not feita and m.id == g.prox) else '' }}" id="missao-{{ m.id }}" data-missao="{{ m.id }}" data-xp="{{ m.xp or 0 }}">
               <div class="missao-check">{% if feita %}<svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>{% else %}{{ loop.index }}{% endif %}</div>
               <div class="missao-info">
                 <strong>{{ m.titulo }}</strong>
                 <p>{{ m.descricao }}</p>
+                {% if m.dica %}
                 <details class="missao-dica">
                   <summary><svg class="ico" aria-hidden="true"><use href="#i-lightbulb"/></svg> Dica</summary>
                   <span>{{ m.dica }}</span>
                 </details>
+                {% endif %}
               </div>
-              <span class="missao-xp">+{{ m.xp }} XP</span>
+              <span class="missao-xp">+{{ m.xp or 0 }} XP</span>
             </div>
             {% endfor %}
           </div>
