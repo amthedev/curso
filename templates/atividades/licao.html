@@ -6,160 +6,400 @@
 {% endblock %}
 
 {% block content %}
-<div class="post-layout licao-layout">
+{% include "atividades/_sprite.html" %}
 
-  <!-- CONTEÚDO DA LIÇÃO -->
-  <article>
-    <a href="{{ url_for('atividades_index') }}" class="voltar">&larr; Todas as atividades</a>
+{# ───────────── Cálculos ───────────── #}
+{% set total_missoes = missoes | length %}
+{% set g = namespace(xp=0, prox=none) %}
+{% for m in missoes %}
+  {% if m.id in missoes_feitas %}{% set g.xp = g.xp + m.xp %}
+  {% elif g.prox is none %}{% set g.prox = m.id %}{% endif %}
+{% endfor %}
+{% set pct_missoes = ((missoes_feitas | length) / total_missoes * 100) | round | int if total_missoes else 0 %}
+{% set pct_xp = (g.xp / xp_total * 100) | round | int if xp_total else 0 %}
+{% set tema_ia = licao.titulo %}
 
-    <header class="post-header">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-        <span class="tag-categoria">Atividade {{ '%02d' % licao.ordem }}</span>
-        <span class="nivel-badge nivel-{{ licao.nivel|lower }}">{{ licao.nivel }}</span>
-        <span class="xp-badge">⚡ {{ xp_total }} XP</span>
+{# ───────────── HEADER ───────────── #}
+<header class="lc-hero">
+  <div class="lc-wrap">
+    <nav class="lc-crumbs" aria-label="Você está em">
+      <a href="{{ url_for('atividades_index') }}">Atividades</a>
+      <svg class="ico" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+      <span>Trilha {{ '%02d' % licao.ordem }}</span>
+      <svg class="ico" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+      <span class="cur" aria-current="page">{{ licao.titulo }}</span>
+    </nav>
+
+    <div class="lc-hero-grid">
+      <div class="lc-hero-main">
+        <div class="lc-badges">
+          <span class="at-lvl at-lvl-{{ licao.nivel | lower }}">{{ licao.nivel }}</span>
+          <span class="lc-badge"><svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg> {{ licao.conteudo | tempo_leitura }} min de leitura</span>
+          <span class="lc-badge"><svg class="ico" aria-hidden="true"><use href="#i-flag"/></svg> {{ total_missoes }} missões práticas</span>
+          <span class="lc-badge lc-badge-xp"><svg class="ico" aria-hidden="true"><use href="#i-zap"/></svg> {{ xp_total }} XP</span>
+          {% if concluida %}<span class="lc-badge lc-badge-ok"><svg class="ico" aria-hidden="true"><use href="#i-check-circle"/></svg> Concluída</span>{% endif %}
+        </div>
+        <h1>{{ licao.titulo }}</h1>
+        <p class="lc-desc">{{ licao.descricao }}</p>
       </div>
-      <h1>{{ licao.titulo }}</h1>
-      <div class="post-meta post-meta-full">
-        <span class="avatar avatar-sm">AD</span>
-        <span>Allan Dev</span>
-        <span class="post-meta-dot">&middot;</span>
-        <span>{{ licao.conteudo | tempo_leitura }} min de leitura</span>
-        <span class="post-meta-dot">&middot;</span>
-        <span>🚩 {{ missoes|length }} missões práticas</span>
+
+      <div class="lc-hero-xp" aria-label="XP desta atividade">
+        <span class="lc-hero-xp-lbl"><svg class="ico" aria-hidden="true"><use href="#i-zap"/></svg> XP da atividade</span>
+        <div class="lc-hero-xp-val"><strong id="heroXp">{{ g.xp }}</strong><span>/ {{ xp_total }}</span></div>
+        <div class="lc-meter"><span id="heroXpBar" style="width: {{ pct_xp }}%"></span></div>
+      </div>
+    </div>
+
+    <ol class="lc-steps" id="lcSteps">
+      <li class="lc-step {{ 'done' if leitura_ok else 'now' }}" data-step="leitura">
+        <span class="lc-step-dot">{% if leitura_ok %}<svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>{% else %}<svg class="ico" aria-hidden="true"><use href="#i-book-open"/></svg>{% endif %}</span>
+        <span class="lc-step-txt"><strong>1. Leitura</strong><small id="lcReadPct">{{ 'Concluída' if leitura_ok else '0% lido' }}</small></span>
+      </li>
+      <li class="lc-step {{ 'done' if concluida else ('now' if leitura_ok else 'lock') }}" data-step="lab">
+        <span class="lc-step-dot">{% if concluida %}<svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>{% elif leitura_ok %}<svg class="ico" aria-hidden="true"><use href="#i-terminal"/></svg>{% else %}<svg class="ico" aria-hidden="true"><use href="#i-lock"/></svg>{% endif %}</span>
+        <span class="lc-step-txt"><strong>2. Laboratório</strong><small id="lcLabTxt">{% if leitura_ok %}{{ missoes_feitas | length }}/{{ total_missoes }} missões{% else %}Bloqueado{% endif %}</small></span>
+      </li>
+      <li class="lc-step {{ 'done' if concluida else 'lock' }}" data-step="fim">
+        <span class="lc-step-dot">{% if concluida %}<svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>{% else %}<svg class="ico" aria-hidden="true"><use href="#i-trophy"/></svg>{% endif %}</span>
+        <span class="lc-step-txt"><strong>3. Conclusão</strong><small>{{ xp_total }} XP + flag</small></span>
+      </li>
+    </ol>
+  </div>
+</header>
+
+<div class="lc-wrap lc-main">
+  <div class="lc-layout">
+
+    <!-- CONTEÚDO DA LIÇÃO -->
+    <article class="lc-article">
+      <details class="lc-toc-mobile">
+        <summary><svg class="ico" aria-hidden="true"><use href="#i-list-checks"/></svg> Nesta atividade</summary>
+        <ul class="toc-list" id="tocListMobile"></ul>
+      </details>
+
+      <div class="post-body lc-body" id="postBody" data-raw="{{ licao.conteudo | e }}"></div>
+
+      <!-- PORTÃO DA LEITURA -->
+      {% if not leitura_ok %}
+      <section class="leitura-gate" id="gate" aria-labelledby="gateTitulo">
+        <span class="gate-ico"><svg class="ico" aria-hidden="true"><use href="#i-book-open"/></svg></span>
+        <div class="gate-body">
+          <h3 id="gateTitulo">Terminou a leitura?</h3>
+          <p>O laboratório prático é liberado só depois que você lê o material. Sem cola — o aprendizado é real.</p>
+          <ul class="gate-unlocks" role="list">
+            <li><svg class="ico" aria-hidden="true"><use href="#i-terminal"/></svg> Terminal Linux interativo</li>
+            <li><svg class="ico" aria-hidden="true"><use href="#i-flag"/></svg> {{ total_missoes }} missões</li>
+            <li><svg class="ico" aria-hidden="true"><use href="#i-zap"/></svg> +{{ xp_total }} XP e uma flag</li>
+          </ul>
+          <form method="post" action="{{ url_for('licao_leitura', slug=licao.slug) }}">
+            <button type="submit" class="btn-lab"><svg class="ico" aria-hidden="true"><use href="#i-unlock"/></svg> Li tudo — liberar laboratório</button>
+          </form>
+          <span class="gate-read" id="gateRead" aria-live="polite"></span>
+        </div>
+      </section>
+      {% endif %}
+    </article>
+
+    <!-- SIDEBAR -->
+    <aside class="lc-aside toc-sidebar" aria-label="Navegação da atividade">
+      <section class="lc-card">
+        <h5><svg class="ico" aria-hidden="true"><use href="#i-list-checks"/></svg> Nesta atividade</h5>
+        <ul class="toc-list" id="tocList"></ul>
+      </section>
+
+      {% if leitura_ok %}
+      <section class="lc-card">
+        <h5><svg class="ico" aria-hidden="true"><use href="#i-flag"/></svg> Missões <span class="lc-card-count" id="asideCount">{{ missoes_feitas | length }}/{{ total_missoes }}</span></h5>
+        <ul class="toc-list toc-missoes" id="tocMissoes"></ul>
+      </section>
+      {% else %}
+      <section class="lc-card lc-card-lock">
+        <h5><svg class="ico" aria-hidden="true"><use href="#i-lock"/></svg> Laboratório</h5>
+        <p>{{ total_missoes }} missões e {{ xp_total }} XP esperam por você depois da leitura.</p>
+        <a class="lc-card-link" href="#gate">Ir para o fim da leitura <svg class="ico" aria-hidden="true"><use href="#i-arrow-right"/></svg></a>
+      </section>
+      {% endif %}
+
+      <section class="lc-card lc-card-ia">
+        <h5><svg class="ico" aria-hidden="true"><use href="#i-sparkles"/></svg> Quer mais prática?</h5>
+        <p>A IA cria uma atividade sobre este tema, na hora.</p>
+        <a class="btn btn-primary btn-sm btn-block" href="{{ url_for('ia.index', tema=tema_ia) }}">
+          Praticar mais com IA <svg class="ico" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+        </a>
+      </section>
+    </aside>
+  </div>
+
+  <!-- LABORATÓRIO -->
+  <section id="lab" class="lab {{ 'lab-locked' if not leitura_ok else '' }}" aria-labelledby="labTitulo">
+    {% if leitura_ok %}
+
+    <header class="lab-header">
+      <div class="lab-title">
+        <span class="lab-ico"><svg class="ico" aria-hidden="true"><use href="#i-flask"/></svg></span>
+        <div>
+          <span class="lab-eyebrow">Laboratório prático</span>
+          <h2 id="labTitulo">Hora de colocar a mão na massa</h2>
+          <p class="lab-sub">Um terminal Linux de mentira, mas um aprendizado de verdade. Complete as missões na ordem que quiser.</p>
+        </div>
+      </div>
+      <div class="lab-xp">
+        <div class="lab-xp-top">
+          <span class="lab-xp-count"><strong id="xpAtual">{{ missoes_feitas | length }}</strong>/<span id="xpTotalMissoes">{{ total_missoes }}</span> missões</span>
+          <span class="lab-xp-pts"><svg class="ico" aria-hidden="true"><use href="#i-zap"/></svg><b id="xpGanho">{{ g.xp }}</b>/{{ xp_total }} XP</span>
+        </div>
+        <div class="lab-xp-bar"><div class="lab-xp-fill" id="xpFill" style="width: {{ pct_missoes }}%"></div></div>
       </div>
     </header>
 
-    <div class="post-body" id="postBody" data-raw="{{ licao.conteudo | e }}"></div>
-
-    <!-- PORTÃO DA LEITURA -->
-    {% if not leitura_ok %}
-    <div class="leitura-gate">
-      <h3>📖 Terminou a leitura?</h3>
-      <p>O laboratório prático é liberado só depois que você lê o material. Sem cola — o aprendizado é real.</p>
-      <form method="post" action="{{ url_for('licao_leitura', slug=licao.slug) }}">
-        <button type="submit" class="btn-lab">🔓 Li tudo — liberar laboratório</button>
-      </form>
-    </div>
-    {% endif %}
-
-    <!-- LABORATÓRIO -->
-    <section id="lab" class="lab {{ 'lab-locked' if not leitura_ok else '' }}">
-      {% if leitura_ok %}
-
-      <div class="lab-header">
-        <div>
-          <h2>🧪 Laboratório prático</h2>
-          <p class="lab-sub">Um terminal Linux de mentira, mas um aprendizado de verdade. Complete as missões na ordem que quiser.</p>
-        </div>
-        <div class="lab-xp">
-          <strong id="xpAtual">{{ missoes_feitas | length }}</strong>/<span id="xpTotalMissoes">{{ missoes|length }}</span> missões
-          <div class="lab-xp-bar"><div class="lab-xp-fill" id="xpFill"></div></div>
-        </div>
-      </div>
-
+    <div class="lab-grid">
       <!-- MISSÕES -->
-      <div class="missoes" id="missoes">
-        {% for m in missoes %}
-        <div class="missao {{ 'missao-feita' if m.id in missoes_feitas else '' }}" id="missao-{{ m.id }}" data-missao="{{ m.id }}">
-          <div class="missao-check">{% if m.id in missoes_feitas %}✓{% else %}{{ loop.index }}{% endif %}</div>
-          <div class="missao-info">
-            <strong>{{ m.titulo }}</strong>
-            <p>{{ m.descricao }}</p>
-            <details class="missao-dica">
-              <summary>💡 Dica</summary>
-              <span>{{ m.dica }}</span>
-            </details>
-          </div>
-          <span class="missao-xp">+{{ m.xp }} XP</span>
+      <section class="lab-missoes" aria-label="Missões">
+        <div class="lab-missoes-head">
+          <h3><svg class="ico" aria-hidden="true"><use href="#i-list-checks"/></svg> Missões</h3>
+          <span class="lab-missoes-count" id="missoesCount">{{ missoes_feitas | length }}/{{ total_missoes }}</span>
         </div>
-        {% endfor %}
-      </div>
+        <div class="lab-missoes-scroll">
+          <div class="missoes" id="missoes">
+            {% for m in missoes %}
+            {% set feita = m.id in missoes_feitas %}
+            <div class="missao {{ 'missao-feita missao-pronta' if feita else '' }} {{ 'missao-atual' if (not feita and m.id == g.prox) else '' }}" id="missao-{{ m.id }}" data-missao="{{ m.id }}" data-xp="{{ m.xp }}">
+              <div class="missao-check">{% if feita %}<svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>{% else %}{{ loop.index }}{% endif %}</div>
+              <div class="missao-info">
+                <strong>{{ m.titulo }}</strong>
+                <p>{{ m.descricao }}</p>
+                <details class="missao-dica">
+                  <summary><svg class="ico" aria-hidden="true"><use href="#i-lightbulb"/></svg> Dica</summary>
+                  <span>{{ m.dica }}</span>
+                </details>
+              </div>
+              <span class="missao-xp">+{{ m.xp }} XP</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="lab-missoes-foot">
+          Quer mais prática? <a href="{{ url_for('ia.index', tema=tema_ia) }}"><svg class="ico" aria-hidden="true"><use href="#i-sparkles"/></svg> Praticar mais com IA</a>
+        </div>
+      </section>
 
       <!-- TERMINAL -->
       <div class="terminal-box">
         <div class="terminal-titlebar">
-          <span class="t-dot t-red"></span>
-          <span class="t-dot t-yellow"></span>
-          <span class="t-dot t-green"></span>
-          <span class="terminal-title">aluno@lab-linux: ~</span>
+          <span class="t-dots" aria-hidden="true">
+            <span class="t-dot t-red"></span>
+            <span class="t-dot t-yellow"></span>
+            <span class="t-dot t-green"></span>
+          </span>
+          <span class="terminal-title"><svg class="ico" aria-hidden="true"><use href="#i-terminal-square"/></svg> aluno@lab-linux: ~</span>
+          <span class="terminal-badge"><i></i> online</span>
         </div>
-        <div class="terminal" id="terminal" tabindex="0">
-          <div class="terminal-out" id="terminalOut"></div>
+        <div class="terminal" id="terminal" tabindex="0" aria-label="Terminal Linux. Clique e digite comandos.">
+          <div class="terminal-out" id="terminalOut" role="log" aria-live="polite"></div>
           <div class="terminal-inputline">
             <span class="prompt" id="promptLabel">aluno@lab-linux:~$</span>
-            <input type="text" id="terminalInput" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Terminal Linux" />
+            <input type="text" id="terminalInput" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Digite um comando" />
           </div>
         </div>
-        <div class="terminal-dica">Clique no terminal e digite <code>help</code> para ver os comandos. ↑↓ navega no histórico, TAB completa.</div>
-      </div>
-
-      <!-- PARABÉNS -->
-      <div class="lab-concluido" id="labConcluido" style="{{ '' if concluida else 'display:none;' }}">
-        <div class="lab-concluido-inner">
-          <span class="lab-trofeu">🏆</span>
-          <h3>Atividade concluída!</h3>
-          <p>Você completou todas as {{ missoes|length }} missões e faturou <strong>{{ xp_total }} XP</strong>. A flag <code>FLAG{pr1m31r0_c0nt4t0}</code> é sua.</p>
-          <a href="{{ url_for('atividades_index') }}" class="btn-lab">← Voltar às atividades</a>
+        <div class="terminal-dica">
+          <span>Clique no terminal e digite <code>help</code></span>
+          <span class="terminal-keys"><kbd>↑</kbd><kbd>↓</kbd> histórico <kbd>Tab</kbd> completa <kbd>Ctrl</kbd>+<kbd>L</kbd> limpa</span>
         </div>
       </div>
-
-      {% else %}
-      <div class="lab-trancado">
-        <span>🔒</span>
-        <p>Leia o material acima e clique no botão para desbloquear o laboratório.</p>
-      </div>
-      {% endif %}
-    </section>
-  </article>
-
-  <!-- SIDEBAR -->
-  <aside class="toc-sidebar">
-    <div class="toc-box">
-      <h5>Nesta atividade</h5>
-      <ul class="toc-list" id="tocList"></ul>
     </div>
-    {% if leitura_ok %}
-    <div class="toc-box">
-      <h5>Progresso</h5>
-      <ul class="toc-list toc-missoes" id="tocMissoes"></ul>
+
+    <!-- PARABÉNS -->
+    <div class="lab-concluido" id="labConcluido" style="{{ '' if concluida else 'display:none;' }}">
+      <div class="lab-concluido-inner">
+        <div class="trofeu" aria-hidden="true">
+          <i></i><i></i><i></i>
+          <span class="lab-trofeu"><svg class="ico" aria-hidden="true"><use href="#i-trophy"/></svg></span>
+        </div>
+        <span class="lab-concluido-tag"><svg class="ico" aria-hidden="true"><use href="#i-check-circle"/></svg> Trilha {{ '%02d' % licao.ordem }} completa</span>
+        <h3>Atividade concluída!</h3>
+        <p>Você cumpriu todas as {{ total_missoes }} missões e faturou <strong>{{ xp_total }} XP</strong>. A flag abaixo é sua.</p>
+
+        <div class="flag-box">
+          <svg class="ico" aria-hidden="true"><use href="#i-flag"/></svg>
+          <code id="flagTxt">FLAG{pr1m31r0_c0nt4t0}</code>
+          <button type="button" class="flag-copy" id="flagCopy" aria-label="Copiar flag"><svg class="ico" aria-hidden="true"><use href="#i-copy"/></svg><span>Copiar</span></button>
+        </div>
+
+        <div class="lab-concluido-actions">
+          <a href="{{ url_for('ia.index', tema=tema_ia) }}" class="btn-lab"><svg class="ico" aria-hidden="true"><use href="#i-sparkles"/></svg> Praticar mais com IA</a>
+          <a href="{{ url_for('atividades_index') }}" class="btn-lab-outline"><svg class="ico" aria-hidden="true"><use href="#i-arrow-left"/></svg> Voltar às atividades</a>
+        </div>
+      </div>
+    </div>
+
+    {% else %}
+    <div class="lab-trancado">
+      <div class="lab-trancado-preview" aria-hidden="true">
+        <div class="ghost-bar"><i></i><i></i><i></i></div>
+        <div class="ghost-body">
+          <p><b>aluno@lab-linux:~$</b> whoami</p>
+          <p>aluno</p>
+          <p><b>aluno@lab-linux:~$</b> ls -a</p>
+          <p>.  ..  .secreto  documentos  downloads  notas.txt</p>
+          <p><b>aluno@lab-linux:~$</b> cat .secreto</p>
+          <p>FLAG{************************}</p>
+        </div>
+      </div>
+      <div class="lab-trancado-over">
+        <span class="lock-ico"><svg class="ico" aria-hidden="true"><use href="#i-lock"/></svg></span>
+        <h2 id="labTitulo">Laboratório bloqueado</h2>
+        <p>Termine a leitura acima para liberar o terminal, as {{ total_missoes }} missões e <strong>{{ xp_total }} XP</strong>.</p>
+        <a class="lab-trancado-link" href="#gate"><svg class="ico" aria-hidden="true"><use href="#i-arrow-right"/></svg> Ir para o botão de liberar</a>
+      </div>
     </div>
     {% endif %}
-  </aside>
-
+  </section>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-(function() {
-  // TOC (mesmo comportamento do post)
-  const body = document.getElementById('postBody');
-  const toc  = document.getElementById('tocList');
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ── TOC (lateral + versão mobile) ── */
+  var body = $("postBody");
+  var toc = $("tocList");
+  var tocM = $("tocListMobile");
   if (body && toc) {
-    requestAnimationFrame(function() {
-      setTimeout(function() {
-        const headings = body.querySelectorAll('h2');
-        headings.forEach(function(h, i) {
-          if (!h.id) h.id = 'sec-' + i;
-          const li = document.createElement('li');
-          const a  = document.createElement('a');
-          a.href = '#' + h.id;
-          a.textContent = h.textContent;
-          li.appendChild(a);
-          toc.appendChild(li);
+    requestAnimationFrame(function () {
+      setTimeout(function () {
+        var headings = body.querySelectorAll("h2");
+        headings.forEach(function (h, i) {
+          if (!h.id) h.id = "sec-" + i;
+          [toc, tocM].forEach(function (ul) {
+            if (!ul) return;
+            var li = document.createElement("li");
+            var a = document.createElement("a");
+            a.href = "#" + h.id;
+            a.textContent = h.textContent;
+            li.appendChild(a);
+            ul.appendChild(li);
+          });
         });
-        const links = toc.querySelectorAll('a');
-        const obs = new IntersectionObserver(function(entries) {
-          entries.forEach(function(e) {
+        if (!headings.length) {
+          var vazio = toc.closest(".lc-card");
+          if (vazio) vazio.hidden = true;
+          var det = document.querySelector(".lc-toc-mobile");
+          if (det) det.hidden = true;
+          return;
+        }
+        var links = toc.querySelectorAll("a");
+        var obs = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) {
             if (e.isIntersecting) {
-              links.forEach(function(l) { l.classList.remove('toc-active'); });
-              const link = toc.querySelector('a[href="#' + e.target.id + '"]');
-              if (link) link.classList.add('toc-active');
+              links.forEach(function (l) { l.classList.remove("toc-active"); });
+              var link = toc.querySelector('a[href="#' + e.target.id + '"]');
+              if (link) link.classList.add("toc-active");
             }
           });
-        }, { rootMargin: '-62px 0px -60% 0px' });
-        headings.forEach(function(h) { obs.observe(h); });
+        }, { rootMargin: "-62px 0px -60% 0px" });
+        headings.forEach(function (h) { obs.observe(h); });
       }, 80);
+    });
+  }
+
+  /* ── Progresso de leitura (só informativo; o botão continua livre) ── */
+  var pctEl = $("lcReadPct");
+  var gateRead = $("gateRead");
+  if (body && pctEl && gateRead) {
+    var maxPct = 0;
+    var calc = function () {
+      var r = body.getBoundingClientRect();
+      if (!r.height) return;
+      var visto = Math.min(Math.max(window.innerHeight * 0.9 - r.top, 0), r.height);
+      var p = Math.round(visto / r.height * 100);
+      if (p > maxPct) {
+        maxPct = p;
+        pctEl.textContent = maxPct + "% lido";
+        gateRead.textContent = maxPct >= 95
+          ? "Você chegou ao fim do material."
+          : "Você leu cerca de " + maxPct + "% do material.";
+      }
+    };
+    window.addEventListener("scroll", calc, { passive: true });
+    window.addEventListener("resize", calc);
+    setTimeout(calc, 200);
+  }
+
+  /* ── Laboratório: XP, missão atual, toast e etapas ── */
+  var lista = $("missoes");
+  if (lista) {
+    var itens = Array.prototype.slice.call(lista.querySelectorAll(".missao"));
+    var total = itens.length;
+    var vistas = {};
+    itens.forEach(function (el) { if (el.classList.contains("missao-feita")) vistas[el.id] = true; });
+
+    var set = function (id, txt) { var e = $(id); if (e) e.textContent = txt; };
+
+    var toast = function (xp) {
+      var host = document.querySelector(".lab-xp");
+      if (!host) return;
+      var t = document.createElement("span");
+      t.className = "xp-toast";
+      t.textContent = "+" + xp + " XP";
+      host.appendChild(t);
+      setTimeout(function () { t.remove(); }, 1700);
+    };
+
+    var sync = function () {
+      var feitas = 0, xp = 0, xpMax = 0, novoXp = 0, proxima = null;
+      itens.forEach(function (el) {
+        var v = parseInt(el.getAttribute("data-xp"), 10) || 0;
+        xpMax += v;
+        if (el.classList.contains("missao-feita")) {
+          feitas++; xp += v;
+          if (!vistas[el.id]) { vistas[el.id] = true; novoXp += v; }
+        } else if (!proxima) {
+          proxima = el;
+        }
+      });
+      itens.forEach(function (el) { el.classList.toggle("missao-atual", el === proxima); });
+      if (novoXp) toast(novoXp);
+
+      set("xpGanho", xp);
+      set("heroXp", xp);
+      set("missoesCount", feitas + "/" + total);
+      set("asideCount", feitas + "/" + total);
+      var bar = $("heroXpBar");
+      if (bar) bar.style.width = (xpMax ? xp / xpMax * 100 : 0) + "%";
+
+      var fim = feitas === total && total > 0;
+      var labTxt = $("lcLabTxt");
+      if (labTxt) labTxt.textContent = feitas + "/" + total + " missões";
+      var steps = document.querySelectorAll("#lcSteps .lc-step");
+      if (fim && steps.length === 3) {
+        steps[1].className = "lc-step done";
+        steps[2].className = "lc-step done";
+        steps[1].querySelector(".lc-step-dot").innerHTML = '<svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>';
+        steps[2].querySelector(".lc-step-dot").innerHTML = '<svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>';
+      }
+    };
+
+    new MutationObserver(sync).observe(lista, { subtree: true, attributes: true, attributeFilter: ["class"] });
+    sync();
+  }
+
+  /* ── Copiar flag ── */
+  var copy = $("flagCopy");
+  var flag = $("flagTxt");
+  if (copy && flag) {
+    copy.addEventListener("click", function () {
+      var label = copy.querySelector("span");
+      var ok = function () {
+        copy.classList.add("copied");
+        if (label) label.textContent = "Copiada!";
+        setTimeout(function () { copy.classList.remove("copied"); if (label) label.textContent = "Copiar"; }, 1800);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(flag.textContent).then(ok, function () {});
+      }
     });
   }
 })();

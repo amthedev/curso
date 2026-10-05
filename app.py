@@ -19,13 +19,14 @@ from flask import Flask, render_template, request, redirect, url_for, flash, abo
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from core import DB_PATH, close_db, get_db, login_requerido
-from ia_routes import bp as ia_bp, init_ia_db
+from ia_routes import bp as ia_bp, init_ia_db, registrar_admin as registrar_admin_ia, resumo_ia_usuario
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-troque-em-producao")
 app.permanent_session_lifetime = timedelta(days=30)
 app.teardown_appcontext(close_db)
 app.register_blueprint(ia_bp)
+registrar_admin_ia(app)  # /painel-allan-dev/ia  (endpoint "admin_ia")
 
 
 # ---------------------------------------------------------------------------
@@ -435,9 +436,18 @@ def atividades_index():
             "em_andamento": bool(prog["leitura_ok"] or feitas) and not prog["concluida"],
         })
 
+    # XP das trilhas. O template de atividades soma `ia_stats.xp` por conta própria
+    # (xp_geral = xp_usuario + ia_stats.xp), então NÃO somamos aqui para não duplicar.
     xp_usuario = sum(c["xp_ganho"] for c in cards)
+    ia_stats, ia_recentes = resumo_ia_usuario(db, uid)
     return render_template(
-        "atividades/index.html", cards=cards, xp_usuario=xp_usuario, perfil=get_perfil()
+        "atividades/index.html",
+        cards=cards,
+        xp_usuario=xp_usuario,
+        xp_total_geral=xp_usuario + ia_stats["xp"],
+        ia_stats=ia_stats,
+        ia_recentes=ia_recentes,
+        perfil=get_perfil(),
     )
 
 

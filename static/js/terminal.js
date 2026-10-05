@@ -134,8 +134,14 @@
     return "/" + cwd.join("/");
   }
 
+  /* Visual: prompt colorido estilo Kali (usuário@host em verde, caminho em azul). */
+  function promptHtml(path) {
+    return '<span class="p-user">' + USER + "@" + HOST + '</span><span class="p-sep">:</span>' +
+      '<span class="p-path">' + path + '</span><span class="p-dollar">$</span>';
+  }
+
   function updatePrompt() {
-    promptEl.textContent = USER + "@" + HOST + ":" + displayPath() + "$";
+    if (promptEl) promptEl.innerHTML = promptHtml(displayPath().replace(/&/g, "&amp;").replace(/</g, "&lt;"));
   }
 
   /* ── saída ── */
@@ -143,6 +149,18 @@
     var div = document.createElement("div");
     div.className = "t-line" + (cls ? " " + cls : "");
     div.textContent = text;
+    outEl.appendChild(div);
+    termEl.scrollTop = termEl.scrollHeight;
+  }
+
+  function printCmd(cmd) {
+    var div = document.createElement("div");
+    div.className = "t-line t-cmdline";
+    div.innerHTML = promptHtml(displayPath().replace(/&/g, "&amp;").replace(/</g, "&lt;"));
+    var span = document.createElement("span");
+    span.className = "t-cmd";
+    span.textContent = " " + cmd;
+    div.appendChild(span);
     outEl.appendChild(div);
     termEl.scrollTop = termEl.scrollHeight;
   }
@@ -435,12 +453,14 @@
     }
   }
 
+  var CHECK_SVG = '<svg class="ico" aria-hidden="true" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+
   function marcarMissao(id) {
     var card = document.getElementById("missao-" + id);
     if (card) {
       card.classList.add("missao-feita");
       var check = card.querySelector(".missao-check");
-      if (check) check.textContent = "✓";
+      if (check) check.innerHTML = CHECK_SVG;
       confete(card);
     }
     var tocItem = document.getElementById("toc-missao-" + id);
@@ -488,7 +508,7 @@
   /* ── execução ── */
   async function executar(raw) {
     var trimmed = raw.trim();
-    print(USER + "@" + HOST + ":" + displayPath() + "$ " + trimmed, "t-cmdline");
+    printCmd(trimmed);
     if (!trimmed) return;
 
     var parts = trimmed.split(/\s+/);
@@ -574,7 +594,14 @@
       var li = document.createElement("li");
       li.id = "toc-missao-" + m.id;
       if (feitas[m.id]) li.classList.add("feita");
-      li.textContent = (feitas[m.id] ? "✓ " : (i + 1) + ". ") + m.titulo;
+      var dot = document.createElement("span");
+      dot.className = "tm-dot";
+      dot.textContent = String(i + 1);
+      var txt = document.createElement("span");
+      txt.className = "tm-txt";
+      txt.textContent = m.titulo;
+      li.appendChild(dot);
+      li.appendChild(txt);
       ul.appendChild(li);
     });
   })();

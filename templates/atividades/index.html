@@ -6,56 +6,305 @@
 {% endblock %}
 
 {% block content %}
-<section class="trilha-hero">
-  <div class="wrap">
-    <span class="hero-eyebrow">🎯 Modo prático</span>
-    <h1>Atividades</h1>
-    <p class="hero-sub">
-      Nada de só ler teoria. Aqui você estuda o conteúdo e depois
-      <strong>coloca a mão na massa</strong> num terminal Linux de verdade (simulado no navegador).
-      Complete missões, ganhe XP e capture flags.
-    </p>
-    <div class="xp-global">
-      <span class="xp-global-label">Seu XP total</span>
-      <strong class="xp-global-valor">{{ xp_usuario }} XP</strong>
+{% include "atividades/_sprite.html" %}
+
+{# ───────────── Cálculos do "dashboard do aluno" ───────────── #}
+{% set ia_ok = ia_stats is defined and ia_stats %}
+{% set ia_xp = (ia_stats.xp or 0) if ia_ok else 0 %}
+{% set ia_total = (ia_stats.total or 0) if ia_ok else 0 %}
+{% set ia_concl = (ia_stats.concluidas or 0) if ia_ok else 0 %}
+{% set xp_geral = xp_total_geral if xp_total_geral is defined else ((xp_usuario or 0) + ia_xp) %}
+
+{# Patentes: mesmos nomes/limites de gamificacao.NIVEIS (mantenha em sincronia). #}
+{% set ranks = [
+  {'nome': 'Script Kiddie', 'min': 0,    'icone': 'i-sprout',   'desc': 'Rodando os primeiros comandos'},
+  {'nome': 'Recruta',       'min': 100,  'icone': 'i-shield',   'desc': 'Já conhece o terreno'},
+  {'nome': 'Operador',      'min': 300,  'icone': 'i-terminal', 'desc': 'Domina o terminal'},
+  {'nome': 'Pentester',     'min': 700,  'icone': 'i-target',   'desc': 'Encontra o que está exposto'},
+  {'nome': 'Red Teamer',    'min': 1500, 'icone': 'i-flame',    'desc': 'Pensa como o atacante'},
+  {'nome': 'Elite',         'min': 3000, 'icone': 'i-crown',    'desc': 'Referência da comunidade'}
+] %}
+{% set r = namespace(i=0) %}
+{% for rk in ranks %}{% if xp_geral >= rk.min %}{% set r.i = loop.index0 %}{% endif %}{% endfor %}
+{% set rank = ranks[r.i] %}
+{% set prox = ranks[r.i + 1] if (r.i + 1) < (ranks | length) else none %}
+{% set rank_pct = ([(((xp_geral - rank.min) / (prox.min - rank.min)) * 100) | round | int, 100] | min) if prox else 100 %}
+{% set falta = (prox.min - xp_geral) if prox else 0 %}
+{% set ring_off = (326.73 * (1 - rank_pct / 100)) | round(2) %}
+
+{% set t = namespace(feitas=0, total=0, concl=0, xp_max=0, foco=none) %}
+{% for c in cards %}
+  {% set t.feitas = t.feitas + c.missoes_feitas %}
+  {% set t.total = t.total + c.total_missoes %}
+  {% set t.xp_max = t.xp_max + c.xp_total %}
+  {% if c.concluida %}{% set t.concl = t.concl + 1 %}{% endif %}
+  {% if t.foco is none and c.em_andamento %}{% set t.foco = c %}{% endif %}
+{% endfor %}
+{% if t.foco is none %}
+  {% for c in cards %}{% if t.foco is none and not c.concluida %}{% set t.foco = c %}{% endif %}{% endfor %}
+{% endif %}
+{% set primeiro_nome = (usuario_atual.nome.split(' ')[0]) if usuario_atual else 'aluno' %}
+
+{# ───────────── HERO ───────────── #}
+<section class="at-hero">
+  <div class="wrap at-hero-grid">
+    <div class="at-hero-main">
+      <span class="at-eyebrow"><svg class="ico" aria-hidden="true"><use href="#i-target"/></svg> Central de treinamento</span>
+      <h1>Olá, <span class="at-grad">{{ primeiro_nome }}</span>.<br>Bora treinar?</h1>
+      <p class="at-lead">
+        Estude o conteúdo e depois <strong>coloque a mão na massa</strong> num terminal Linux de verdade
+        (simulado no navegador). Cumpra missões, ganhe XP, capture flags e suba de patente.
+      </p>
+
+      <div class="at-hero-cta">
+        {% if t.foco %}
+        <a class="btn btn-primary btn-lg" href="{{ url_for('licao_detalhe', slug=t.foco.licao.slug) }}">
+          <svg class="ico" aria-hidden="true"><use href="#i-play"/></svg>
+          {{ 'Continuar trilha' if t.foco.em_andamento else 'Começar primeira trilha' }}
+        </a>
+        {% endif %}
+        <a class="btn btn-outline btn-lg" href="{{ url_for('ia.index') }}">
+          <svg class="ico" aria-hidden="true"><use href="#i-sparkles"/></svg> Atividade com IA
+        </a>
+      </div>
+
+      <ul class="at-stats" role="list">
+        <li class="at-stat at-stat-xp">
+          <span class="at-stat-ico"><svg class="ico" aria-hidden="true"><use href="#i-zap"/></svg></span>
+          <span class="at-stat-val">{{ xp_geral }}</span>
+          <span class="at-stat-lbl">XP total</span>
+        </li>
+        <li class="at-stat at-stat-ms">
+          <span class="at-stat-ico"><svg class="ico" aria-hidden="true"><use href="#i-flag"/></svg></span>
+          <span class="at-stat-val">{{ t.feitas }}<small>/{{ t.total }}</small></span>
+          <span class="at-stat-lbl">Missões cumpridas</span>
+        </li>
+        <li class="at-stat at-stat-tr">
+          <span class="at-stat-ico"><svg class="ico" aria-hidden="true"><use href="#i-trophy"/></svg></span>
+          <span class="at-stat-val">{{ t.concl }}<small>/{{ cards | length }}</small></span>
+          <span class="at-stat-lbl">Trilhas concluídas</span>
+        </li>
+        <li class="at-stat at-stat-ia">
+          <span class="at-stat-ico"><svg class="ico" aria-hidden="true"><use href="#i-cpu"/></svg></span>
+          <span class="at-stat-val">{{ ia_total }}</span>
+          <span class="at-stat-lbl">Atividades com IA</span>
+        </li>
+      </ul>
+    </div>
+
+    <aside class="at-rank" aria-label="Sua patente">
+      <div class="at-rank-ring" style="--off: {{ ring_off }}">
+        <svg viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="trk" cx="60" cy="60" r="52"/>
+          <circle class="bar" cx="60" cy="60" r="52"/>
+        </svg>
+        <span class="at-rank-ico"><svg class="ico" aria-hidden="true"><use href="#{{ rank.icone }}"/></svg></span>
+      </div>
+      <span class="at-rank-kicker">Sua patente</span>
+      <strong class="at-rank-nome">{{ rank.nome }}</strong>
+      <span class="at-rank-desc">{{ rank.desc }}</span>
+
+      <div class="at-rank-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ rank_pct }}" aria-label="Progresso até a próxima patente">
+        <span style="width: {{ rank_pct }}%"></span>
+      </div>
+      <p class="at-rank-next">
+        {% if prox %}
+          Faltam <strong>{{ falta }} XP</strong> para <strong>{{ prox.nome }}</strong>
+        {% else %}
+          Patente máxima alcançada. Você é <strong>Elite</strong>.
+        {% endif %}
+      </p>
+
+      <ol class="at-rank-steps" role="list">
+        {% for rk in ranks %}
+        <li class="{{ 'done' if loop.index0 < r.i else ('now' if loop.index0 == r.i else '') }}" title="{{ rk.nome }} — a partir de {{ rk.min }} XP">
+          <svg class="ico" aria-hidden="true"><use href="#{{ rk.icone }}"/></svg>
+        </li>
+        {% endfor %}
+      </ol>
+    </aside>
+  </div>
+</section>
+
+{# ───────────── DESTAQUE: ATIVIDADES COM IA ───────────── #}
+<section class="wrap at-sec">
+  <div class="at-ia">
+    <div class="at-ia-copy">
+      <span class="at-ia-tag"><svg class="ico" aria-hidden="true"><use href="#i-zap"/></svg> Treino sem fim</span>
+      <h2>Atividades geradas por IA</h2>
+      <p>
+        Escolha qualquer tema de segurança e o nível de dificuldade. A IA monta uma atividade
+        sob medida na hora — você resolve, ela corrige e te dá nota e XP.
+      </p>
+      <ul class="at-ia-feats" role="list">
+        <li><svg class="ico" aria-hidden="true"><use href="#i-sparkles"/></svg> Qualquer tema, na hora</li>
+        <li><svg class="ico" aria-hidden="true"><use href="#i-gauge"/></svg> Nível sob medida</li>
+        <li><svg class="ico" aria-hidden="true"><use href="#i-award"/></svg> Nota e XP</li>
+      </ul>
+      <div class="at-ia-cta">
+        <a class="btn btn-primary btn-lg" href="{{ url_for('ia.index') }}">
+          Gerar uma atividade <svg class="ico" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+        </a>
+      </div>
+      <div class="at-ia-temas">
+        <span>Experimente:</span>
+        {% for tema in ['SQL Injection', 'Varredura com Nmap', 'Hashing de senhas', 'Engenharia social'] %}
+        <a class="at-chip" href="{{ url_for('ia.index', tema=tema) }}">{{ tema }}</a>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="at-ia-panel">
+      <div class="at-ia-mini">
+        <div><strong>{{ ia_total }}</strong><span>Geradas</span></div>
+        <div><strong>{{ ia_concl }}</strong><span>Concluídas</span></div>
+        <div class="xp"><strong>{{ ia_xp }}</strong><span>XP de IA</span></div>
+      </div>
+
+      {% if ia_ok and ia_recentes is defined and ia_recentes %}
+      <h3 class="at-ia-sub">Suas atividades recentes</h3>
+      <ul class="at-ia-recentes" role="list">
+        {% for a in ia_recentes %}
+        <li>
+          <a href="{{ url_for('ia.ver', atividade_id=a.id) }}">
+            <span class="at-ia-rico {{ 'ok' if a.concluida else '' }}">
+              <svg class="ico" aria-hidden="true"><use href="{{ '#i-check' if a.concluida else '#i-terminal-square' }}"/></svg>
+            </span>
+            <span class="at-ia-rtxt">
+              <strong>{{ a.titulo or a.tema }}</strong>
+              <small>{{ a.nivel }} · {{ 'concluída' if a.concluida else 'em aberto' }}</small>
+            </span>
+            {% if a.concluida and a.nota is not none %}<span class="at-ia-nota" title="Nota">{{ a.nota }}<small>/100</small></span>{% endif %}
+            <svg class="ico at-ia-go" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="at-ia-demo" aria-hidden="true">
+        <div class="at-ia-demo-bar"><i></i><i></i><i></i><span>ia — gerador de atividades</span></div>
+        <div class="at-ia-demo-body">
+          <p><b>$</b> gerar <em>--tema</em> "SQL Injection" <em>--nivel</em> intermediário</p>
+          <p class="d">montando enunciado…</p>
+          <p class="d">criando cenário de prática…</p>
+          <p class="ok">✔ atividade pronta<span class="caret"></span></p>
+        </div>
+      </div>
+      <p class="at-ia-vazio">Você ainda não gerou nenhuma atividade. A primeira leva menos de um minuto.</p>
+      {% endif %}
     </div>
   </div>
 </section>
 
-<div class="wrap">
-  <div class="trilha-lista">
-    {% for c in cards %}
-    <a href="{{ url_for('licao_detalhe', slug=c.licao.slug) }}" class="trilha-card {{ 'trilha-concluida' if c.concluida else '' }}">
-      <div class="trilha-card-topo">
-        <span class="trilha-num">{{ '%02d' % c.licao.ordem }}</span>
-        <span class="nivel-badge nivel-{{ c.licao.nivel|lower }}">{{ c.licao.nivel }}</span>
-        {% if c.concluida %}
-          <span class="trilha-status status-concluida">✓ Concluída</span>
-        {% elif c.em_andamento %}
-          <span class="trilha-status status-andamento">● Em andamento</span>
-        {% else %}
-          <span class="trilha-status status-disponivel">◆ Disponível hoje</span>
-        {% endif %}
-      </div>
-      <h3>{{ c.licao.titulo }}</h3>
-      <p>{{ c.licao.descricao }}</p>
-      <div class="trilha-card-meta">
-        <span>🚩 {{ c.total_missoes }} missões</span>
-        <span>⚡ {{ c.xp_total }} XP</span>
-        {% if c.missoes_feitas %}
-        <span>✅ {{ c.missoes_feitas }}/{{ c.total_missoes }} feitas</span>
-        {% endif %}
-      </div>
-      {% set pct = (c.missoes_feitas / c.total_missoes * 100) | round | int if c.total_missoes else 0 %}
-      <div class="trilha-progresso">
-        <div class="trilha-progresso-fill" style="width: {{ pct }}%"></div>
-      </div>
-    </a>
-    {% else %}
-    <div class="vazio">
-      <p>Nenhuma atividade disponível ainda. Volte em breve!</p>
+{# ───────────── ROADMAP ───────────── #}
+<section class="wrap at-sec at-roadmap-sec">
+  <div class="at-sec-head">
+    <div>
+      <span class="at-kicker"><svg class="ico" aria-hidden="true"><use href="#i-map"/></svg> Roadmap</span>
+      <h2>Trilhas de aprendizado</h2>
+      <p>Leia o material, libere o laboratório e cumpra as missões. Uma trilha por vez.</p>
     </div>
-    {% endfor %}
+    <ul class="at-legend" role="list" aria-label="Legenda">
+      <li><i class="done"></i> Concluída</li>
+      <li><i class="doing"></i> Em andamento</li>
+      <li><i class="todo"></i> Disponível</li>
+    </ul>
   </div>
-</div>
+
+  <div class="at-road-grid">
+    <ol class="at-road" role="list">
+      {% for c in cards %}
+      {% set estado = 'done' if c.concluida else ('doing' if c.em_andamento else 'todo') %}
+      <li class="at-node at-{{ estado }}">
+        <span class="at-node-dot" aria-hidden="true">
+          {% if c.concluida %}<svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>
+          {% elif c.em_andamento %}<svg class="ico" aria-hidden="true"><use href="#i-play"/></svg>
+          {% else %}{{ '%02d' % c.licao.ordem }}{% endif %}
+        </span>
+
+        <a class="at-card" href="{{ url_for('licao_detalhe', slug=c.licao.slug) }}">
+          <div class="at-card-top">
+            <span class="at-card-num">Trilha {{ '%02d' % c.licao.ordem }}</span>
+            <span class="at-lvl at-lvl-{{ c.licao.nivel | lower }}">{{ c.licao.nivel }}</span>
+            <span class="at-status at-status-{{ estado }}">
+              {% if c.concluida %}<svg class="ico" aria-hidden="true"><use href="#i-check-circle"/></svg> Concluída
+              {% elif c.em_andamento %}<span class="at-pulse"></span> Em andamento
+              {% else %}<svg class="ico" aria-hidden="true"><use href="#i-rocket"/></svg> Disponível{% endif %}
+            </span>
+          </div>
+
+          <h3>{{ c.licao.titulo }}</h3>
+          <p>{{ c.licao.descricao }}</p>
+
+          {% set pct = ((c.missoes_feitas / c.total_missoes * 100) | round | int) if c.total_missoes else 0 %}
+          <div class="at-prog">
+            <div class="at-prog-top">
+              <span>Progresso</span>
+              <strong>{{ c.missoes_feitas }}/{{ c.total_missoes }} missões · {{ pct }}%</strong>
+            </div>
+            <div class="at-segs" role="progressbar" aria-valuemin="0" aria-valuemax="{{ c.total_missoes }}" aria-valuenow="{{ c.missoes_feitas }}" aria-label="Missões cumpridas">
+              {% for i in range(c.total_missoes) %}<i class="{{ 'on' if i < c.missoes_feitas else '' }}"></i>{% endfor %}
+            </div>
+          </div>
+
+          <div class="at-card-foot">
+            <ul class="at-meta" role="list">
+              <li><svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg> {{ c.licao.conteudo | tempo_leitura }} min de leitura</li>
+              <li><svg class="ico" aria-hidden="true"><use href="#i-flag"/></svg> {{ c.total_missoes }} missões</li>
+              <li class="xp"><svg class="ico" aria-hidden="true"><use href="#i-zap"/></svg> {{ c.xp_ganho }}/{{ c.xp_total }} XP</li>
+            </ul>
+            <span class="at-cta">
+              {% if c.concluida %}Revisar{% elif c.em_andamento %}Continuar{% else %}Começar{% endif %}
+              <svg class="ico" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+            </span>
+          </div>
+        </a>
+      </li>
+      {% else %}
+      <li class="at-vazio">
+        <svg class="ico" aria-hidden="true"><use href="#i-map"/></svg>
+        <p>Nenhuma atividade disponível ainda. Volte em breve!</p>
+      </li>
+      {% endfor %}
+
+      {% if cards %}
+      <li class="at-node at-soon">
+        <span class="at-node-dot" aria-hidden="true"><svg class="ico" aria-hidden="true"><use href="#i-lock"/></svg></span>
+        <div class="at-card at-card-soon">
+          <span class="at-card-num">Próxima parada</span>
+          <h3>Novas trilhas a caminho</h3>
+          <p>Mais conteúdo está sendo preparado. Enquanto isso, treine sem limite com atividades geradas por IA.</p>
+          <a class="at-cta" href="{{ url_for('ia.index') }}">Gerar atividade com IA <svg class="ico" aria-hidden="true"><use href="#i-arrow-right"/></svg></a>
+        </div>
+      </li>
+      {% endif %}
+    </ol>
+
+    <aside class="at-side">
+      <section class="at-box">
+        <h3><svg class="ico" aria-hidden="true"><use href="#i-award"/></svg> Patentes</h3>
+        <ol class="at-ranks" role="list">
+          {% for rk in ranks %}
+          {% set est = 'done' if loop.index0 < r.i else ('now' if loop.index0 == r.i else 'lock') %}
+          <li class="{{ est }}">
+            <span class="at-ranks-ico"><svg class="ico" aria-hidden="true"><use href="#{{ rk.icone if est != 'lock' else 'i-lock' }}"/></svg></span>
+            <span class="at-ranks-txt"><strong>{{ rk.nome }}</strong><small>{{ rk.desc }}</small></span>
+            <span class="at-ranks-xp">{{ rk.min }} XP</span>
+          </li>
+          {% endfor %}
+        </ol>
+      </section>
+
+      <section class="at-box">
+        <h3><svg class="ico" aria-hidden="true"><use href="#i-lightbulb"/></svg> Como ganhar XP</h3>
+        <ul class="at-howto" role="list">
+          <li><span>1</span> Leia o material da trilha</li>
+          <li><span>2</span> Cumpra as missões no terminal</li>
+          <li><span>3</span> Resolva atividades geradas por IA</li>
+        </ul>
+        <p class="at-howto-xp">Esta trilha vale <strong>{{ t.xp_max }} XP</strong> no total.</p>
+      </section>
+    </aside>
+  </div>
+</section>
 {% endblock %}

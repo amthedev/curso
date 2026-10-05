@@ -45,8 +45,23 @@ function inlineMarkdown(text) {
   out = out.replace(/`([^`]+)`/g, "<code>$1</code>");
   out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   out = out.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-  out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function (_m, label, url) {
+    return linkSeguro(label, url);
+  });
   return out;
+}
+
+/* Link markdown seguro: só http(s)://, caminho absoluto "/" ou âncora "#".
+   Qualquer outro esquema (javascript:, data:, vbscript:...) vira só o texto.
+   O href já vem escapado por escapeHtml (aspas viram &quot;) — aqui ainda
+   barramos qualquer marcação/espaço/aspas para não dar pra quebrar o atributo. */
+function linkSeguro(label, url) {
+  var href = String(url).trim();
+  var permitido = /^(https?:\/\/|\/|#)/i.test(href);
+  if (!permitido || /[<>"'`\s\x00-\x1f]/.test(href)) return label;
+  var externo = /^https?:\/\//i.test(href);
+  return '<a href="' + href + '"' + (externo ? ' target="_blank"' : "") +
+    ' rel="noopener noreferrer">' + label + "</a>";
 }
 
 /* Syntax highlight for code blocks */

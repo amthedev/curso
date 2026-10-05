@@ -8,7 +8,7 @@ import sqlite3
 from functools import wraps
 from pathlib import Path
 
-from flask import g, redirect, request, session, url_for
+from flask import g, jsonify, redirect, request, session, url_for
 
 BASE_DIR = Path(__file__).resolve().parent
 # DB_PATH pode ser sobrescrito por variável de ambiente (útil em testes)
@@ -34,5 +34,17 @@ def login_requerido(view):
     def wrapped(*args, **kwargs):
         if not session.get("uid"):
             return redirect(url_for("login", proximo=request.path))
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def login_requerido_api(view):
+    """Igual ao login_requerido, mas responde 401 em JSON (para fetch)."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not session.get("uid"):
+            return jsonify({"ok": False, "erro": "Sua sessão expirou. Entre novamente.",
+                            "codigo": "nao_autenticado",
+                            "login": url_for("login")}), 401
         return view(*args, **kwargs)
     return wrapped
