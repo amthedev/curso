@@ -14,38 +14,23 @@ import re
 import sqlite3
 import unicodedata
 from datetime import datetime, timedelta
-from functools import wraps
-from pathlib import Path
 
-from flask import Flask, g, render_template, request, redirect, url_for, flash, abort, session
+from flask import Flask, render_template, request, redirect, url_for, flash, abort, session
 from werkzeug.security import generate_password_hash, check_password_hash
 
-BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = BASE_DIR / "blog.db"
+from core import DB_PATH, close_db, get_db, login_requerido
+from ia_routes import bp as ia_bp, init_ia_db
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-troque-em-producao")
 app.permanent_session_lifetime = timedelta(days=30)
+app.teardown_appcontext(close_db)
+app.register_blueprint(ia_bp)
 
 
 # ---------------------------------------------------------------------------
 # Banco de dados
 # ---------------------------------------------------------------------------
-
-def get_db():
-    if "db" not in g:
-        g.db = sqlite3.connect(DB_PATH)
-        g.db.row_factory = sqlite3.Row
-        g.db.execute("PRAGMA foreign_keys = ON")
-    return g.db
-
-
-@app.teardown_appcontext
-def close_db(exception=None):
-    db = g.pop("db", None)
-    if db is not None:
-        db.close()
-
 
 def init_db():
     fresh = not DB_PATH.exists()
@@ -119,6 +104,7 @@ def init_db():
     if fresh:
         _seed(db)
     _seed_licoes(db)
+    init_ia_db(db)
     db.close()
 
 
@@ -239,15 +225,6 @@ def get_usuario_atual():
 @app.context_processor
 def inject_globals():
     return {"usuario_atual": get_usuario_atual()}
-
-
-def login_requerido(view):
-    @wraps(view)
-    def wrapped(*args, **kwargs):
-        if not session.get("uid"):
-            return redirect(url_for("login", proximo=request.path))
-        return view(*args, **kwargs)
-    return wrapped
 
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
