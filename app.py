@@ -27,6 +27,7 @@ from core import (DB_PATH, LimitadorTentativas, SECRET_KEY_FILE, carregar_secret
 from ia_routes import bp as ia_bp, init_ia_db, registrar_admin as registrar_admin_ia, resumo_ia_usuario
 import gamificacao as gami
 from aluno_routes import bp as aluno_bp
+from tutor_routes import bp as tutor_bp, init_tutor_db
 
 app = Flask(__name__)
 
@@ -104,6 +105,7 @@ app.teardown_appcontext(close_db)
 app.register_blueprint(ia_bp)
 registrar_admin_ia(app)  # /painel-allan-dev/ia  (endpoint "admin_ia")
 app.register_blueprint(aluno_bp)  # /eu, /ranking, /api/eu/stats
+app.register_blueprint(tutor_bp)  # /tutor/perguntar, /tutor/historico ("Travei?" do laboratório)
 
 
 # ---------------------------------------------------------------------------
@@ -264,6 +266,7 @@ def init_db():
         _seed(db)
     _seed_licoes(db)
     init_ia_db(db)
+    init_tutor_db(db)  # chat do tutor "Travei?" (usa ia_uso, criada acima)
     gami.init_gamificacao_db(db)  # depois de usuarios/licoes/ia_*
     gami.backfill(db)             # idempotente: converte progresso antigo em xp_eventos
     db.close()

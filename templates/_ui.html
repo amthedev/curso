@@ -71,10 +71,17 @@
 {# Card de post: capa colorida por categoria + tags + meta #}
 {% macro post_card(p, i=0) -%}
 {% set k = (p.categoria or 'geral')|lower|replace(' ','') %}
-{% set snippets = {'pentest':'$ nmap -sV alvo.lab','linux':'$ chmod 640 chave.pem','redes':'tcp/443  SYN → SYN-ACK','python':'>>> import socket','fundamentos':'0x7f 0x45 0x4c 0x46'} %}
+{% set snippets = {
+  'pentest': ['$ nmap -sV alvo.lab', '$ sqlmap -u "url" --dbs', '$ gobuster dir -u alvo.lab', '$ searchsploit apache 2.4', '$ hydra -l admin -P lista.txt', '$ whatweb alvo.lab'],
+  'linux': ['$ chmod 640 chave.pem', '$ ps aux | grep sshd', '$ journalctl -u nginx -f', '$ ls -la /etc/shadow', '$ strace -f ./app', '$ find / -perm -4000'],
+  'redes': ['tcp/443  SYN → SYN-ACK', '$ tcpdump -i eth0 port 80', '$ ss -tulpn', '$ dig +short alvo.lab', '$ traceroute 8.8.8.8', '10.0.0.0/8  RFC 1918'],
+  'python': ['>>> import socket', '>>> requests.get(url)', '$ python3 exploit.py', '>>> bytes.fromhex("41")', '$ pip install scapy', '>>> hashlib.sha256()'],
+  'fundamentos': ['0x7f 0x45 0x4c 0x46', 'sha256(senha + sal)', 'AES-256-GCM', '$ uname -a', 'XOR: 0101 ^ 0011 = 0110', 'chave pública / privada']
+} %}
+{% set lista = snippets.get(k) %}
 <a href="{{ url_for('post_detalhe', slug=p.slug) }}" class="post-card cat-{{ k }} reveal" style="--i:{{ i }}">
   <div class="pc-cover" aria-hidden="true">
-    <span class="pc-snippet">{{ snippets.get(k, '$ _') }}</span>
+    <span class="pc-snippet">{{ lista[i % (lista|length)] if lista else '$ _' }}</span>
     {{ cat_ico(p.categoria, 'pc-ico') }}
   </div>
   <div class="pc-body">

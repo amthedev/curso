@@ -32,7 +32,7 @@
 
       <form class="hero-search" method="get" action="{{ url_for('index') }}" role="search">
         {{ ico('search') }}
-        <input type="search" name="q" placeholder="Buscar: nmap, sql injection, permissões…" value="{{ busca }}" aria-label="Buscar posts" autocomplete="off" data-search>
+        <input type="search" name="q" placeholder="Buscar: nmap, sql injection…" value="{{ busca }}" aria-label="Buscar posts" autocomplete="off" data-search>
         <kbd class="kbd" aria-hidden="true">/</kbd>
         <button type="submit" class="btn btn-primary btn-sm">Buscar</button>
       </form>
@@ -47,8 +47,8 @@
           <dd><strong data-count="{{ categorias|length }}">{{ categorias|length }}</strong></dd>
         </div>
         <div class="hero-stat">
-          <dt>Min de leitura</dt>
-          <dd><strong data-count="{{ tot.min }}">{{ tot.min }}</strong></dd>
+          <dt>Leitura</dt>
+          <dd><strong data-count="{{ tot.min }}">{{ tot.min }}</strong><span class="stat-unit">min</span></dd>
         </div>
       </dl>
     </div>
@@ -58,7 +58,6 @@
         <div class="tx-bar">
           <span class="tx-dots"><i></i><i></i><i></i></span>
           <span class="tx-title">allan@lab: ~/recon</span>
-          <span class="tx-tag">lab</span>
         </div>
         <div class="tx-body">
           <div class="tx-line" data-cmd><span class="tx-prompt">$</span><span class="tx-cmd">nmap -sV -p 22,80,443 alvo.lab</span></div>

@@ -568,7 +568,10 @@
     if (e.key === "Enter") {
       var val = inputEl.value;
       inputEl.value = "";
-      if (val.trim()) { history.push(val); histIdx = history.length; }
+      if (val.trim()) {
+        history.push(val); histIdx = history.length;
+        window.labHistorico = history.slice(-15); // lido pelo tutor.js ("Travei?")
+      }
       running = true;
       try { await executar(val); } finally { running = false; }
     } else if (e.key === "ArrowUp") {

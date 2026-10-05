@@ -480,6 +480,37 @@ body.ia-travado { overflow: hidden; }
 .ia-form-nota { margin: 10px 0 0; font-size: .8rem; color: var(--text-2); text-align: center; }
 .ia-form-nota strong { color: var(--accent); }
 
+/* "Praticar este post" */
+.ia-post-banner {
+  display: flex; align-items: flex-start; gap: 14px;
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border-radius: var(--r);
+  border: 1px solid color-mix(in srgb, var(--purple) 38%, transparent);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--purple) 13%, transparent), transparent 70%),
+    var(--bg-1);
+}
+.ia-post-ico {
+  flex-shrink: 0;
+  width: 38px; height: 38px;
+  display: grid; place-items: center;
+  border-radius: 12px;
+  font-size: 1.1rem;
+  color: var(--purple);
+  background: color-mix(in srgb, var(--purple) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--purple) 32%, transparent);
+}
+.ia-post-txt { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ia-post-lbl { font-size: .76rem; font-weight: 600; letter-spacing: .02em; color: var(--purple); }
+.ia-post-txt strong { font-family: var(--display); font-size: 1.02rem; line-height: 1.35; overflow-wrap: anywhere; }
+.ia-post-links { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 4px; font-size: .8rem; }
+.ia-post-links a { color: var(--text-2); text-decoration: underline; text-underline-offset: 3px; }
+.ia-post-links a:hover { color: var(--accent); }
+.ia-post-nota { margin-top: 0; }
+.ia-post-link a { color: var(--purple); text-decoration: underline; text-underline-offset: 3px; }
+.ia-post-link a:hover { color: var(--accent); }
+
 /* ── Histórico ── */
 .ia-side { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
 .ia-hist { padding: 20px 18px 10px; }

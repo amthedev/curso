@@ -177,6 +177,11 @@
     tema.addEventListener("input", function () { erro.hidden = true; contar(); });
     contar();
 
+    /* Veio de "Praticar este post": leva o aluno direto ao banner + nível + botão */
+    if (form.getAttribute("data-post") && !window.location.hash) {
+      requestAnimationFrame(function () { form.scrollIntoView({ block: "start", behavior: "instant" }); });
+    }
+
     $$(".ia-chip", form).forEach(function (c) {
       c.addEventListener("click", function () {
         tema.value = c.getAttribute("data-tema");
@@ -197,6 +202,9 @@
         foco: (form.querySelector('input[name="foco"]:checked') || {}).value || "misto",
         tipos: $$('input[name="tipos"]:checked', form).map(function (i) { return i.value; })
       };
+      /* "Praticar este post": o servidor carrega o post (e fixa o formato) pelo slug */
+      var postSlug = form.getAttribute("data-post");
+      if (postSlug) params.post = postSlug;
       if (params.tema.length < 3) { mostrarErro("Descreva o tema com pelo menos 3 caracteres."); tema.focus(); return; }
       if (!params.tipos.length) { mostrarErro("Marque pelo menos um tipo de questão."); return; }
 
@@ -698,6 +706,7 @@
         foco: c.foco || "misto",
         base_id: c.base_id
       };
+      if (c.post) params.post = c.post;  /* atividade de post: gera/abre do mesmo post */
       $$("[data-final]").forEach(function (b) { b.disabled = true; });
       gerarAtividade(D.urls.gerar, params, function (m) {
         $$("[data-final]").forEach(function (b) { b.disabled = false; });

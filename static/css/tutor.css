@@ -1,0 +1,325 @@
+/* ===================================================================
+   Tutor "Travei?" — gaveta lateral (desktop) / bottom-sheet (mobile)
+   no laboratório das lições. Só usa os tokens de style.css (:root).
+   Estrutura: .tutor-travei (botão por missão) · .tutor-fab (botão flutuante)
+              .tutor > .tutor-backdrop + .tutor-painel
+   =================================================================== */
+
+/* ── Botão "Travei?" dentro de cada missão ── */
+.tutor-travei {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 8px;
+  padding: 4px 11px;
+  font: 600 .76rem/1.4 var(--font);
+  color: var(--accent);
+  background: var(--accent-dim);
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background .2s, border-color .2s, transform .2s var(--ease);
+}
+.tutor-travei:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); border-color: var(--border-hi); }
+.tutor-travei:active { transform: scale(.97); }
+.tutor-travei:focus-visible { outline: none; box-shadow: var(--ring); }
+.missao-feita .tutor-travei { color: var(--text-3); background: transparent; border-color: var(--border-soft); }
+
+/* ── Botão flutuante (aparece enquanto o laboratório está na tela) ── */
+.tutor-fab {
+  position: fixed; right: 20px; bottom: 76px; z-index: 140;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 18px 11px 14px;
+  font: 700 .9rem/1 var(--font);
+  color: var(--accent-ink);
+  background: var(--accent-grad);
+  border: 0; border-radius: 999px;
+  box-shadow: var(--shadow), var(--accent-glow);
+  cursor: pointer;
+  animation: tutor-entra .35s var(--ease) both;
+  transition: transform .2s var(--ease), filter .2s;
+}
+.tutor-fab:hover { transform: translateY(-2px); filter: brightness(1.06); }
+.tutor-fab:focus-visible { outline: none; box-shadow: var(--shadow), var(--ring); }
+.tutor-fab > span[aria-hidden] { font-size: 1.1rem; line-height: 1; }
+body.tutor-open .tutor-fab { display: none; }
+@keyframes tutor-entra { from { opacity: 0; transform: translateY(10px) scale(.96); } }
+
+/* ── Casca: não bloqueia a página no desktop ── */
+.tutor {
+  position: fixed; inset: 0; z-index: 300;
+  pointer-events: none;
+}
+.tutor-backdrop { display: none; }
+
+.tutor-painel {
+  position: absolute; top: var(--header-h); right: 0; bottom: 0;
+  width: min(420px, 100%);
+  display: flex; flex-direction: column;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-2) 70%, var(--bg-1)), var(--bg-1) 38%);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  transform: translateX(104%);
+  transition: transform .34s var(--ease);
+  pointer-events: auto;
+  outline: none;
+}
+.tutor.is-on .tutor-painel { transform: none; }
+.tutor-grip { display: none; }
+
+/* Tela larga: a página abre espaço para a gaveta — dá para ver o terminal enquanto conversa. */
+@media (min-width: 1100px) {
+  body.tutor-open { padding-right: 420px; }
+}
+
+/* ── Cabeçalho ── */
+.tutor-head {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 14px 12px 16px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.tutor-avatar {
+  flex-shrink: 0;
+  display: grid; place-items: center;
+  width: 40px; height: 40px;
+  font-size: 1.25rem;
+  border-radius: 14px;
+  background: var(--ai-grad);
+  box-shadow: 0 6px 18px -8px rgba(88,166,255,.7);
+}
+.tutor-head-txt { min-width: 0; flex: 1; }
+.tutor-head-txt h2 { margin: 0; font-size: 1.02rem; line-height: 1.2; }
+.tutor-head-txt p { margin: 2px 0 0; font-size: .76rem; line-height: 1.35; color: var(--text-3); }
+.tutor-x {
+  flex-shrink: 0;
+  display: grid; place-items: center;
+  width: 36px; height: 36px;
+  color: var(--text-2);
+  background: transparent; border: 1px solid var(--border-soft); border-radius: 50%;
+  cursor: pointer;
+  transition: color .2s, background .2s, border-color .2s;
+}
+.tutor-x svg, .tutor-enviar svg {
+  width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.tutor-x:hover { color: var(--text); background: var(--bg-3); border-color: var(--border); }
+.tutor-x:focus-visible { outline: none; box-shadow: var(--ring); }
+
+/* ── Seletor de contexto (missão) ── */
+.tutor-ctx {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: .78rem; color: var(--text-3);
+}
+.tutor-ctx label { flex-shrink: 0; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; font-size: .68rem; }
+.tutor-ctx select {
+  flex: 1; min-width: 0;
+  padding: 7px 28px 7px 10px;
+  font: 500 .82rem var(--font);
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  text-overflow: ellipsis;
+}
+.tutor-ctx select:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
+.tutor-ctx select:disabled { opacity: .6; }
+
+/* ── Conversa ── */
+.tutor-msgs {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 16px;
+  overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: var(--bg-3) transparent;
+}
+.tutor-msgs:focus-visible { outline: none; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+
+.tutor-msg { display: flex; flex-direction: column; gap: 4px; max-width: 92%; animation: tutor-msg-in .28s var(--ease) both; }
+.tutor-msg-eu { align-self: flex-end; align-items: flex-end; }
+.tutor-msg-ia { align-self: flex-start; align-items: flex-start; }
+@keyframes tutor-msg-in { from { opacity: 0; transform: translateY(8px); } }
+
+.tutor-quem {
+  display: flex; align-items: center; gap: 6px;
+  font-size: .68rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--text-3);
+}
+.tutor-tag {
+  padding: 1px 7px;
+  font-size: .64rem; letter-spacing: .03em;
+  color: var(--info);
+  background: color-mix(in srgb, var(--info) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--info) 32%, transparent);
+  border-radius: 999px;
+}
+.tutor-bolha {
+  padding: 10px 13px;
+  font-size: .9rem; line-height: 1.55;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  border-radius: var(--r-lg);
+}
+.tutor-msg-ia .tutor-bolha {
+  background: var(--bg-2);
+  border: 1px solid var(--border-soft);
+  border-top-left-radius: 6px;
+}
+.tutor-msg-eu .tutor-bolha {
+  color: var(--text);
+  background: var(--accent-dim);
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  border-top-right-radius: 6px;
+}
+.tutor-bolha code {
+  padding: 1px 6px;
+  font-family: var(--mono); font-size: .84em;
+  color: var(--accent);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  white-space: pre-wrap;
+}
+.tutor-msg-erro .tutor-bolha {
+  color: color-mix(in srgb, var(--danger) 70%, var(--text));
+  background: color-mix(in srgb, var(--danger) 10%, var(--bg-1));
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+}
+.tutor-msg-aviso .tutor-bolha {
+  color: color-mix(in srgb, var(--warn) 75%, var(--text));
+  background: color-mix(in srgb, var(--warn) 9%, var(--bg-1));
+  border-color: color-mix(in srgb, var(--warn) 38%, transparent);
+}
+
+/* Indicador "digitando…" */
+.tutor-digitando .tutor-bolha { display: inline-flex; align-items: center; gap: 5px; padding: 14px 16px; }
+.tutor-pontos { display: inline-flex; gap: 5px; }
+.tutor-pontos i {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--text-3);
+  animation: tutor-ponto 1.1s ease-in-out infinite;
+}
+.tutor-pontos i:nth-child(2) { animation-delay: .16s; }
+.tutor-pontos i:nth-child(3) { animation-delay: .32s; }
+@keyframes tutor-ponto {
+  0%, 60%, 100% { transform: translateY(0); opacity: .45; background: var(--text-3); }
+  30% { transform: translateY(-5px); opacity: 1; background: var(--accent); }
+}
+
+/* ── Ações rápidas ── */
+.tutor-acoes {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  padding: 10px 16px 0;
+  border-top: 1px solid var(--border-soft);
+}
+.tutor-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px;
+  font: 600 .78rem/1.2 var(--font);
+  color: var(--text-2);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color .2s, background .2s, border-color .2s, transform .2s var(--ease);
+}
+.tutor-chip:hover:not(:disabled) { color: var(--text); border-color: var(--border-hi); }
+.tutor-chip:active:not(:disabled) { transform: scale(.97); }
+.tutor-chip:focus-visible { outline: none; box-shadow: var(--ring); }
+.tutor-chip[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.tutor-chip:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Campo livre ── */
+.tutor-form {
+  display: flex; align-items: flex-end; gap: 8px;
+  padding: 10px 16px 6px;
+}
+.tutor-form textarea {
+  flex: 1; min-width: 0;
+  min-height: 44px; max-height: 120px;
+  padding: 10px 12px;
+  font: 400 .9rem/1.45 var(--font);
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  resize: none;
+}
+.tutor-form textarea::placeholder { color: var(--text-3); }
+.tutor-form textarea:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
+.tutor-form textarea:disabled { opacity: .6; }
+.tutor-enviar {
+  flex-shrink: 0;
+  display: grid; place-items: center;
+  width: 44px; height: 44px;
+  color: var(--accent-ink);
+  background: var(--accent-grad);
+  border: 0; border-radius: var(--r);
+  cursor: pointer;
+  transition: filter .2s, transform .2s var(--ease), opacity .2s;
+}
+.tutor-enviar:hover:not(:disabled) { filter: brightness(1.08); }
+.tutor-enviar:active:not(:disabled) { transform: scale(.95); }
+.tutor-enviar:focus-visible { outline: none; box-shadow: var(--ring); }
+.tutor-enviar:disabled { opacity: .45; cursor: not-allowed; }
+
+.tutor-rodape {
+  margin: 0;
+  padding: 2px 16px 14px;
+  font-size: .72rem; line-height: 1.45;
+  color: var(--text-3);
+}
+
+/* ── Mobile: bottom-sheet ── */
+@media (max-width: 760px) {
+  .tutor-fab { right: 14px; bottom: 64px; padding: 10px 16px 10px 12px; font-size: .85rem; }
+
+  .tutor.is-on { pointer-events: auto; }
+  .tutor-backdrop {
+    display: block;
+    position: absolute; inset: 0;
+    background: rgba(3,6,10,.62);
+    -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+    opacity: 0;
+    transition: opacity .3s;
+  }
+  .tutor.is-on .tutor-backdrop { opacity: 1; }
+
+  .tutor-painel {
+    top: auto; left: 0; right: 0; bottom: 0;
+    width: auto;
+    height: min(82dvh, 660px);
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    transform: translateY(104%);
+  }
+  .tutor-grip {
+    display: block;
+    width: 42px; height: 4px; margin: 8px auto 0;
+    background: var(--border);
+    border-radius: 4px;
+  }
+  .tutor-head { padding-top: 10px; }
+  .tutor-msgs { padding: 14px; }
+  .tutor-msg { max-width: 94%; }
+  .tutor-acoes { padding: 10px 14px 0; gap: 6px; }
+  .tutor-chip { padding: 7px 11px; font-size: .76rem; }
+  .tutor-form { padding: 10px 14px 6px; }
+  .tutor-form textarea { font-size: 16px; } /* evita o zoom automático do iOS ao focar */
+  .tutor-rodape { padding: 2px 14px 12px; }
+  body.tutor-open { overflow: hidden; }
+}
+
+@media (max-width: 380px) {
+  .tutor-head-txt p { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tutor-painel, .tutor-backdrop, .tutor-fab, .tutor-msg { transition: none; animation: none; }
+  .tutor-pontos i { animation: none; opacity: .8; }
+}

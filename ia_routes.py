@@ -268,6 +268,66 @@ def _checar_requisicao_json():
     return None
 
 
+# API interna para outros blueprints de IA (ex.: tutor_routes.py) reaproveitarem
+# a mesma checagem de origem/Content-Type, o log de uso e o "dia" do limite.
+erro_json = _erro
+checar_requisicao_json = _checar_requisicao_json
+registrar_uso = _registrar_uso
+HOJE_SQL = _HOJE_SQL
+
+
+def _post_por_slug(db, slug):
+    """Post pelo slug (ou None). Aceita qualquer valor: só strings plausíveis consultam."""
+    if not isinstance(slug, str) or not slug.strip() or len(slug) > 200:
+        return None
+    return db.execute("SELECT id, slug, titulo, corpo, nivel FROM posts WHERE slug = ?",
+                      (slug.strip(),)).fetchone()
+
+
+def _hash_corpo(corpo: str) -> str:
+    return hashlib.sha1((corpo or "").encode("utf-8")).hexdigest()[:12]
+
+
+def _cache_pratica(db, post_id: int, nivel: str, corpo_hash: str):
+    """Atividade pronta (dict) do cache de "praticar post", ou None se não há/está inválida."""
+    r = db.execute(
+        "SELECT payload_json FROM post_pratica_cache WHERE post_id = ? AND nivel = ? AND corpo_hash = ?",
+        (post_id, nivel, corpo_hash),
+    ).fetchone()
+    if r is None:
+        return None
+    try:
+        payload = json.loads(r["payload_json"])
+        atividade = payload["atividade"]
+        if isinstance(atividade, dict) and atividade.get("questoes"):
+            return payload
+    except (TypeError, ValueError, KeyError):
+        pass
+    return None
+
+
+def _gravar_cache_pratica(db, post_id: int, nivel: str, corpo_hash: str, atividade: dict, modelo: str):
+    payload = json.dumps({"atividade": atividade, "modelo": modelo}, ensure_ascii=False)
+    # Mantém o primeiro (várias requisições simultâneas) e descarta versões velhas do texto
+    db.execute(
+        "INSERT OR IGNORE INTO post_pratica_cache (post_id, nivel, corpo_hash, payload_json) "
+        "VALUES (?, ?, ?, ?)", (post_id, nivel, corpo_hash, payload))
+    db.execute("DELETE FROM post_pratica_cache WHERE post_id = ? AND corpo_hash != ?",
+               (post_id, corpo_hash))
+
+
+def _pratica_cache_hoje(db, uid) -> int:
+    return db.execute(
+        f"SELECT COUNT(*) c FROM ia_uso WHERE usuario_id = ? AND tipo = 'pratica_cache' AND {_HOJE_SQL}",
+        (uid,),
+    ).fetchone()["c"]
+
+
+def _trava_para(chave: tuple) -> threading.Lock:
+    with _gerando_lock:
+        return _trava_pratica.setdefault(chave, threading.Lock())
+
+
 def _atividade_do_usuario(atividade_id: int):
     row = get_db().execute(
         "SELECT * FROM ia_atividades WHERE id = ? AND usuario_id = ?",
@@ -499,6 +559,42 @@ def ver(atividade_id):
 # API JSON
 # ---------------------------------------------------------------------------
 
+def _inserir_atividade(db, uid, tema, nivel, foco, tipos, quantidade, atividade, modelo) -> int:
+    atividade["quantidade_pedida"] = quantidade
+    cur = db.execute(
+        "INSERT INTO ia_atividades (usuario_id, tema, nivel, foco, tipos, quantidade, titulo, json, "
+        "modelo, xp_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (uid, tema, nivel, foco, json.dumps(tipos), len(atividade["questoes"]), atividade["titulo"],
+         json.dumps(atividade, ensure_ascii=False), modelo, atividade["xp_total"]),
+    )
+    return cur.lastrowid
+
+
+def _resposta_gerada(db, uid, atividade_id, atividade, **extra):
+    return jsonify({
+        "ok": True,
+        "id": atividade_id,
+        "url": url_for("ia.ver", atividade_id=atividade_id),
+        "questoes": len(atividade["questoes"]),
+        "uso": _uso_info(db, uid),
+        **extra,
+    })
+
+
+def _atividade_do_cache(db, uid, post, nivel, tipos, payload):
+    """Cria a atividade do usuário a partir do cache — sem IA e SEM consumir a cota de gerações
+    (fica registrada como `pratica_cache`, que o limite diário não conta)."""
+    atividade = payload["atividade"]
+    for q in atividade["questoes"]:  # cada aluno vê alternativas/passos em outra ordem
+        ia.embaralhar_questao(q)
+    modelo = "cache:" + str(payload.get("modelo") or "ia")[:90]
+    novo_id = _inserir_atividade(db, uid, atividade.get("tema") or ia.limpar_tema(post["titulo"]),
+                                 nivel, "misto", tipos, POST_QUANTIDADE, atividade, modelo)
+    _registrar_uso(db, uid, "pratica_cache", tema=post["titulo"], modelo=modelo)
+    db.commit()
+    return _resposta_gerada(db, uid, novo_id, atividade, cache=True)
+
+
 @bp.route("/gerar", methods=["POST"])
 @login_requerido_api
 def gerar():
@@ -508,29 +604,45 @@ def gerar():
     if not ia.ia_configurada():
         return _erro("A geração com IA ainda não foi configurada pelo administrador.", 503, "nao_configurada")
 
-    dados = request.get_json(silent=True) or {}
-    tema = ia.limpar_tema(dados.get("tema"))
-    if len(tema) < 3:
-        return _erro("Descreva o tema com pelo menos 3 caracteres.", 400, "tema")
-    nivel = ia.normalizar_nivel(dados.get("nivel"))
-    if not nivel:
-        return _erro("Escolha um nível válido.", 400, "nivel")
-    try:
-        quantidade = int(dados.get("quantidade"))
-    except (TypeError, ValueError):
-        quantidade = 0
-    if quantidade not in ia.QUANTIDADES:
-        return _erro("Escolha a quantidade de questões (5, 8, 10 ou 15).", 400, "quantidade")
-    tipos = _tipos_validos(dados.get("tipos"))
-    if not tipos:
-        return _erro("Marque pelo menos um tipo de questão.", 400, "tipos")
-    foco = dados.get("foco") if dados.get("foco") in ia.FOCOS else "misto"
-
+    dados = request.get_json(silent=True)
+    if not isinstance(dados, dict):
+        return _erro("JSON inválido.", 400, "json")
     db = get_db()
     uid = session["uid"]
 
+    nivel = ia.normalizar_nivel(dados.get("nivel"))
+    if not nivel:
+        return _erro("Escolha um nível válido.", 400, "nivel")
+
+    # "Praticar este post": o servidor carrega o post e fixa o formato (tema, 8 questões, todos os
+    # tipos) — assim a atividade em cache é a mesma para todos e nada do cliente a influencia.
+    post = None
+    if dados.get("post") not in (None, ""):
+        post = _post_por_slug(db, dados.get("post"))
+        if post is None:
+            return _erro("Esse post não foi encontrado.", 404, "post")
+        if len((post["corpo"] or "").strip()) < POST_CORPO_MIN:
+            return _erro("Este post é curto demais para virar uma atividade.", 422, "post_curto")
+        tema = ia.limpar_tema(post["titulo"])
+        quantidade, tipos, foco = POST_QUANTIDADE, list(ia.TIPOS), "misto"
+    else:
+        tema = ia.limpar_tema(dados.get("tema"))
+        if len(tema) < 3:
+            return _erro("Descreva o tema com pelo menos 3 caracteres.", 400, "tema")
+        try:
+            quantidade = int(dados.get("quantidade"))
+        except (TypeError, ValueError):
+            quantidade = 0
+        if quantidade not in ia.QUANTIDADES:
+            return _erro("Escolha a quantidade de questões (5, 8, 10 ou 15).", 400, "quantidade")
+        tipos = _tipos_validos(dados.get("tipos"))
+        if not tipos:
+            return _erro("Marque pelo menos um tipo de questão.", 400, "tipos")
+        foco = dados.get("foco") if dados.get("foco") in ia.FOCOS else "misto"
+
     # "Gerar outra / mais difícil": evita repetir as questões da atividade base
     evitar = []
+    base = None
     base_id = dados.get("base_id")
     if isinstance(base_id, int) and not isinstance(base_id, bool):
         base = _atividade_do_usuario(base_id)
@@ -539,6 +651,22 @@ def gerar():
                 evitar = [q["enunciado"] for q in json.loads(base["json"])["questoes"]]
             except (TypeError, ValueError, KeyError):
                 evitar = []
+
+    corpo_hash = chave_cache = contexto = None
+    quer_outra = False
+    if post is not None:
+        corpo_hash = _hash_corpo(post["corpo"])
+        chave_cache = (post["id"], nivel, corpo_hash)
+        contexto = post["corpo"][:6000]
+        # "Outra" no MESMO nível precisa de questões novas → ignora o cache
+        quer_outra = base is not None and base["nivel"] == nivel
+        if not quer_outra:
+            cache = _cache_pratica(db, *chave_cache)
+            if cache:
+                if _pratica_cache_hoje(db, uid) >= POST_CACHE_DIARIO:
+                    return _erro("Você já abriu muitas atividades de posts hoje. Resolva as que já tem "
+                                 "e volte amanhã!", 429, "limite_cache")
+                return _atividade_do_cache(db, uid, post, nivel, tipos, cache)
 
     limite = ia.limite_diario()
     if limite > 0 and geracoes_hoje(db, uid) >= limite:
@@ -554,41 +682,45 @@ def gerar():
                          409, "em_andamento")
         _gerando.add(uid)
     try:
+        # Quem chega junto no mesmo post/nível espera o primeiro gerar e aproveita o cache.
+        trava = _trava_para(chave_cache) if chave_cache else None
+        if trava:
+            trava.acquire()
         try:
-            resultado = ia.gerar_atividade(tema, nivel, quantidade, tipos, foco, evitar)
-        except ia.IAErro as e:
-            _registrar_uso(db, uid, "geracao", tema=tema, ok=False, erro=e.codigo)
-            db.commit()
-            return _erro(e.mensagem, e.status, e.codigo)
-        except Exception:  # nunca deixa vazar stack/segredo para o cliente
-            log.exception("Erro inesperado gerando atividade com IA")
-            _registrar_uso(db, uid, "geracao", tema=tema, ok=False, erro="interno")
-            db.commit()
-            return _erro("Erro inesperado ao gerar a atividade. Tente novamente.", 500, "interno")
+            if trava and not quer_outra:
+                cache = _cache_pratica(db, *chave_cache)
+                if cache:
+                    return _atividade_do_cache(db, uid, post, nivel, tipos, cache)
+            try:
+                resultado = ia.gerar_atividade(tema, nivel, quantidade, tipos, foco, evitar, contexto)
+            except ia.IAErro as e:
+                _registrar_uso(db, uid, "geracao", tema=tema, ok=False, erro=e.codigo)
+                db.commit()
+                return _erro(e.mensagem, e.status, e.codigo)
+            except Exception:  # nunca deixa vazar stack/segredo para o cliente
+                log.exception("Erro inesperado gerando atividade com IA")
+                _registrar_uso(db, uid, "geracao", tema=tema, ok=False, erro="interno")
+                db.commit()
+                return _erro("Erro inesperado ao gerar a atividade. Tente novamente.", 500, "interno")
 
-        atividade = resultado["atividade"]
-        atividade["quantidade_pedida"] = quantidade
-        cur = db.execute(
-            "INSERT INTO ia_atividades (usuario_id, tema, nivel, foco, tipos, quantidade, titulo, json, "
-            "modelo, xp_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (uid, tema, nivel, foco, json.dumps(tipos), len(atividade["questoes"]), atividade["titulo"],
-             json.dumps(atividade, ensure_ascii=False), resultado["modelo"], atividade["xp_total"]),
-        )
-        _registrar_uso(db, uid, "geracao", tema=tema, modelo=resultado["modelo"],
-                       tokens=resultado["tokens"], duracao_ms=resultado["duracao_ms"])
-        db.commit()
+            atividade = resultado["atividade"]
+            atividade["quantidade_pedida"] = quantidade
+            if post is not None:
+                atividade["post"] = {"slug": post["slug"], "titulo": post["titulo"]}
+                _gravar_cache_pratica(db, post["id"], nivel, corpo_hash, atividade, resultado["modelo"])
+            novo_id = _inserir_atividade(db, uid, tema, nivel, foco, tipos, quantidade, atividade,
+                                         resultado["modelo"])
+            _registrar_uso(db, uid, "geracao", tema=tema, modelo=resultado["modelo"],
+                           tokens=resultado["tokens"], duracao_ms=resultado["duracao_ms"])
+            db.commit()
+        finally:
+            if trava:
+                trava.release()
     finally:
         with _gerando_lock:
             _gerando.discard(uid)
 
-    novo_id = cur.lastrowid
-    return jsonify({
-        "ok": True,
-        "id": novo_id,
-        "url": url_for("ia.ver", atividade_id=novo_id),
-        "questoes": len(atividade["questoes"]),
-        "uso": _uso_info(db, uid),
-    })
+    return _resposta_gerada(db, uid, novo_id, atividade)
 
 
 @bp.route("/<int:atividade_id>/responder", methods=["POST"])

@@ -14,6 +14,9 @@
   'ordenar': 'Coloque os passos em ordem',
 } %}
 {% set limite_estourado = (not uso.ilimitado) and uso.restantes == 0 %}
+{# Modo "Praticar este post": tema/quantidade/tipos/foco ficam fixos (valem para o cache de todos). #}
+{% set modo_post = post_ctx is not none and post_ctx %}
+{% set deslocar = 1 if modo_post else 0 %}
 
 {% include "ia/_icones.html" %}
 
@@ -24,12 +27,20 @@
       <a class="ia-voltar" href="{{ url_for('atividades_index') }}">
         <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-arrow-left"/></svg> Atividades
       </a>
-      <span class="ia-eyebrow"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-sparkles"/></svg> Gerado na hora com IA</span>
+      <span class="ia-eyebrow"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-sparkles"/></svg> {{ 'Praticar este post' if modo_post else 'Gerado na hora com IA' }}</span>
+      {% if modo_post %}
+      <h1>Pratique este post com <span class="ia-grad">atividades de IA</span></h1>
+      <p class="ia-hero-sub">
+        A IA lê o post e monta questões só com o que ele ensina — resumo teórico, desafios
+        de comando e correção na hora. Todo XP soma no seu perfil.
+      </p>
+      {% else %}
       <h1>Treine qualquer tema com <span class="ia-grad">atividades de IA</span></h1>
       <p class="ia-hero-sub">
         Escolha o assunto, o nível e os tipos de questão. A IA monta uma atividade inédita —
         com resumo teórico, desafios de comando e correção na hora. Todo XP soma no seu perfil.
       </p>
+      {% endif %}
       <ul class="ia-hero-pills" role="list">
         <li><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-misto"/></svg> 5 tipos de questão</li>
         <li><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-check"/></svg> Correção instantânea</li>
@@ -107,16 +118,31 @@
   {% endif %}
 
   <div class="ia-layout">
-    <form class="ia-card ia-form" id="iaForm" novalidate
+    <form class="ia-card ia-form {{ 'is-post' if modo_post else '' }}" id="iaForm" novalidate
           data-url="{{ url_for('ia.gerar') }}"
+          {% if modo_post %}data-post="{{ post_ctx.slug }}"{% endif %}
           aria-describedby="iaFormSub">
       <header class="ia-form-head">
         <span class="ia-form-kicker">Nova atividade</span>
         <h2>Monte seu treino</h2>
-        <p id="iaFormSub">Quanto mais específico o tema, melhor a atividade.</p>
+        <p id="iaFormSub">{% if modo_post %}Escolha só o nível — o resto a gente monta a partir do post.{% else %}Quanto mais específico o tema, melhor a atividade.{% endif %}</p>
       </header>
 
-      <div class="ia-campo">
+      {% if modo_post %}
+      <div class="ia-post-banner" id="iaPostBanner" role="note">
+        <span class="ia-post-ico" aria-hidden="true"><svg class="ia-ico"><use href="#ia-i-teoria"/></svg></span>
+        <div class="ia-post-txt">
+          <span class="ia-post-lbl">Atividade baseada no post:</span>
+          <strong>{{ post_ctx.titulo }}</strong>
+          <span class="ia-post-links">
+            <a href="{{ url_for('post_detalhe', slug=post_ctx.slug) }}">Reler o post</a>
+            <a href="{{ url_for('ia.index') }}">Usar um tema livre</a>
+          </span>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="ia-campo" {{ 'hidden' if modo_post else '' }}>
         <label class="ia-label" for="iaTema">
           <span class="ia-step">1</span> Sobre o que você quer treinar?
         </label>
@@ -135,7 +161,7 @@
       </div>
 
       <fieldset class="ia-campo">
-        <legend class="ia-label"><span class="ia-step">2</span> Nível</legend>
+        <legend class="ia-label"><span class="ia-step">{{ 2 - deslocar }}</span> Nível</legend>
         <div class="ia-seg ia-seg-3">
           {% for n in niveis %}
           <label class="ia-seg-opt">
@@ -150,7 +176,7 @@
         </div>
       </fieldset>
 
-      <div class="ia-campo-dupla">
+      <div class="ia-campo-dupla" {{ 'hidden' if modo_post else '' }}>
         <fieldset class="ia-campo">
           <legend class="ia-label"><span class="ia-step">3</span> Quantidade</legend>
           <div class="ia-seg ia-seg-qtd">
@@ -179,7 +205,7 @@
         </fieldset>
       </div>
 
-      <fieldset class="ia-campo">
+      <fieldset class="ia-campo" {{ 'hidden' if modo_post else '' }}>
         <legend class="ia-label"><span class="ia-step">5</span> Tipos de questão</legend>
         <div class="ia-tipos">
           {% for chave, nome in tipos.items() %}
@@ -202,6 +228,12 @@
           <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-sparkles"/></svg>
           <span>Gerar atividade</span>
         </button>
+        {% if modo_post %}
+        <p class="ia-form-nota ia-post-nota">
+          Formato padrão: 8 questões de todos os tipos. Se alguém já praticou este post neste nível,
+          sua atividade abre na hora e <strong>não gasta</strong> suas gerações.
+        </p>
+        {% endif %}
         <p class="ia-form-nota">
           {% if not status.configurada %}
             Geração indisponível até a chave ser configurada.

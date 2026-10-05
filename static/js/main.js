@@ -515,15 +515,19 @@ function initReadingBar() {
   function progresso() {
     var doc = document.documentElement;
     var vh  = window.innerHeight;
+    var y   = window.pageYOffset || doc.scrollTop || 0;
     var p;
     if (body && body.offsetHeight > 0) {
+      /* 0% quando o topo do texto encosta no header; 100% quando o fim chega a 60% da tela */
       var r = body.getBoundingClientRect();
-      p = (vh * 0.9 - r.top) / r.height;
+      var a = headerHeight() + 40;
+      var b = vh * 0.6 - r.height;
+      p = a > b ? (a - r.top) / (a - b) : 0;
     } else {
       var h = doc.scrollHeight - doc.clientHeight;
-      p = h > 0 ? (doc.scrollTop || document.body.scrollTop) / h : 0;
+      p = h > 0 ? y / h : 0;
     }
-    if (window.pageYOffset + vh >= doc.scrollHeight - 4) p = 1;
+    if (y > 0 && y + vh >= doc.scrollHeight - 4) p = 1;
     return Math.min(1, Math.max(0, p));
   }
   function update() {
@@ -857,7 +861,7 @@ function markdownParaHtml(md) {
     return '<pre' + (canon === "bash" ? ' data-shell="1"' : "") + '>' +
       '<div class="code-header">' +
         '<span class="code-lang" data-lang="' + escapeHtml(canon || "text") + '">' + escapeHtml(label) + '</span>' +
-        '<button type="button" class="code-copy" onclick="copyCode(this)" aria-label="Copiar código"><span>Copiar</span></button>' +
+        '<button type="button" class="code-copy" aria-label="Copiar código"><span>Copiar</span></button>' +
       '</div>' +
       '<code>' + highlightCode(codigo, canon) + '</code>' +
     '</pre>';
@@ -971,6 +975,13 @@ function renderPostBody() {
   if (!el) return;
   el.innerHTML = markdownParaHtml(el.dataset.raw || "");
 }
+
+/* Botões "Copiar" dos blocos de código: delegação de evento (sem onclick inline).
+   Botões antigos que ainda tragam onclick="copyCode(this)" continuam funcionando. */
+document.addEventListener("click", function (e) {
+  var b = e.target.closest ? e.target.closest(".code-copy") : null;
+  if (b && !b.hasAttribute("onclick")) copyCode(b);
+});
 
 /* Copy code button */
 function copyCode(btn) {

@@ -1,18 +1,18 @@
-{% from "_ui.html" import ico, sprite %}
+{%- from "_ui.html" import ico, sprite -%}
 {#- Categorias para o menu/rodapé: prefere `nav_categorias` (se alguém injetar via context processor),
     depois `categorias` da home (com contagem) e por fim uma lista fixa. -#}
-{% set _cats = [] %}
-{% if nav_categorias is defined and nav_categorias %}
-  {% for c in nav_categorias %}{% set _ = _cats.append({'nome': c.categoria, 'total': c.total}) %}{% endfor %}
-{% elif request.endpoint == 'index' and categorias is defined and categorias %}
-  {% for c in categorias %}{% set _ = _cats.append({'nome': c.categoria, 'total': c.total}) %}{% endfor %}
-{% else %}
-  {% for n in ['Fundamentos', 'Linux', 'Redes', 'Python', 'Pentest'] %}{% set _ = _cats.append({'nome': n, 'total': none}) %}{% endfor %}
-{% endif %}
-{% set _cat_ativa = categoria_ativa if (request.endpoint == 'index' and categoria_ativa is defined) else '' %}
-{% set _ep = request.endpoint or '' %}
-{% set _nome = (usuario_atual.nome if usuario_atual else '') or '' %}
-{% set _ini = (_nome.strip()[:1] or 'A')|upper %}
+{%- set _cats = [] -%}
+{%- if nav_categorias is defined and nav_categorias -%}
+  {%- for c in nav_categorias -%}{%- set _ = _cats.append({'nome': c.categoria, 'total': c.total}) -%}{%- endfor -%}
+{%- elif request.endpoint == 'index' and categorias is defined and categorias -%}
+  {%- for c in categorias -%}{%- set _ = _cats.append({'nome': c.categoria, 'total': c.total}) -%}{%- endfor -%}
+{%- else -%}
+  {%- for n in ['Fundamentos', 'Linux', 'Redes', 'Python', 'Pentest'] -%}{%- set _ = _cats.append({'nome': n, 'total': none}) -%}{%- endfor -%}
+{%- endif -%}
+{%- set _cat_ativa = categoria_ativa if (request.endpoint == 'index' and categoria_ativa is defined) else '' -%}
+{%- set _ep = request.endpoint or '' -%}
+{%- set _nome = (usuario_atual.nome if usuario_atual else '') or '' -%}
+{%- set _ini = (_nome.strip()[:1] or 'A')|upper -%}
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -68,8 +68,17 @@
         {{ ico('sparkles') }}<span>IA</span><em class="nav-new">novo</em>
       </a>
 
-      {#- Espaço reservado para links extras (ex.: "Meu painel", "Ranking"). -#}
-      {% block nav_extra %}{% endblock %}
+      {#- Gamificação: só para quem está logado. -#}
+      {% block nav_extra %}
+      {% if usuario_atual %}
+      <a href="{{ url_for('aluno.painel') }}" class="nav-link nav-link-extra {{ 'active' if _ep == 'aluno.painel' else '' }}" {% if _ep == 'aluno.painel' %}aria-current="page"{% endif %}>
+        {{ ico('star') }}<span>Meu painel</span>
+      </a>
+      <a href="{{ url_for('aluno.ranking') }}" class="nav-link nav-link-extra {{ 'active' if _ep == 'aluno.ranking' else '' }}" {% if _ep == 'aluno.ranking' %}aria-current="page"{% endif %}>
+        {{ ico('trending') }}<span>Ranking</span>
+      </a>
+      {% endif %}
+      {% endblock %}
 
       <div class="nav-dd" data-dd>
         <button type="button" class="nav-link {{ 'active' if _cat_ativa else '' }}" data-dd-btn aria-expanded="false" aria-haspopup="true" aria-controls="ddCats">
@@ -124,7 +133,10 @@
             <div><strong>{{ _nome }}</strong><small>{{ usuario_atual.email }}</small></div>
           </div>
           {#- Espaço reservado para itens extras do menu do usuário. -#}
-          {% block user_menu_extra %}{% endblock %}
+          {% block user_menu_extra %}
+          <a class="pop-item" role="menuitem" href="{{ url_for('aluno.painel') }}">{{ ico('star') }} Meu painel</a>
+          <a class="pop-item" role="menuitem" href="{{ url_for('aluno.ranking') }}">{{ ico('trending') }} Ranking</a>
+          {% endblock %}
           <form method="post" action="{{ url_for('logout') }}" role="none">
             <button type="submit" class="pop-item pop-danger" role="menuitem">{{ ico('logout') }} Sair</button>
           </form>
@@ -232,6 +244,7 @@
 <button type="button" class="to-top" id="toTop" aria-label="Voltar ao topo">{{ ico('arrow-up') }}</button>
 
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script src="{{ url_for('static', filename='js/gamificacao.js') }}"></script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>

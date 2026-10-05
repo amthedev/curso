@@ -33,7 +33,10 @@
       </ul>
     </div>
     {% endif %}
-    <p class="ia-modelo"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-cpu"/></svg> gerado por <code>{{ row.modelo or 'IA' }}</code> · {{ row.criado_em|ia_data }}</p>
+    {% if post_info %}
+    <p class="ia-modelo ia-post-link"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-teoria"/></svg> baseada no post <a href="{{ url_for('post_detalhe', slug=post_info.slug) }}">{{ post_info.titulo }}</a></p>
+    {% endif %}
+    <p class="ia-modelo"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-cpu"/></svg> {% if (row.modelo or '').startswith('cache:') %}gerado por <code>{{ row.modelo[6:] or 'IA' }}</code> (reaproveitado do cache do post) · {{ row.criado_em|ia_data }}{% else %}gerado por <code>{{ row.modelo or 'IA' }}</code> · {{ row.criado_em|ia_data }}{% endif %}</p>
   </div>
 </section>
 

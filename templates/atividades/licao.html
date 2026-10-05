@@ -3,6 +3,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/atividades.css') }}">
+{% if tutor_disponivel and leitura_ok %}<link rel="stylesheet" href="{{ url_for('static', filename='css/tutor.css') }}">{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -172,6 +173,11 @@
                   <span>{{ m.dica }}</span>
                 </details>
                 {% endif %}
+                {% if tutor_disponivel %}
+                <button type="button" class="tutor-travei" data-tutor-missao="{{ m.id }}" aria-haspopup="dialog" aria-controls="tutor" aria-expanded="false">
+                  <span aria-hidden="true">🤖</span> Travei?<span class="sr-only"> na missão {{ m.titulo }}</span>
+                </button>
+                {% endif %}
               </div>
               <span class="missao-xp">+{{ m.xp or 0 }} XP</span>
             </div>
@@ -255,6 +261,58 @@
     {% endif %}
   </section>
 </div>
+
+{# ───────────── TUTOR "TRAVEI?" (gaveta lateral / bottom-sheet no mobile) ───────────── #}
+{% if tutor_disponivel and leitura_ok %}
+<button type="button" class="tutor-fab" id="tutorFab" data-tutor-abrir aria-haspopup="dialog" aria-controls="tutor" aria-expanded="false" hidden>
+  <span aria-hidden="true">🤖</span> Travei?<span class="sr-only"> — pedir ajuda ao tutor</span>
+</button>
+
+<div class="tutor" id="tutor" hidden
+     data-licao="{{ licao.slug }}"
+     data-url-perguntar="{{ url_for('tutor.perguntar') }}"
+     data-url-historico="{{ url_for('tutor.historico_chat') }}">
+  <div class="tutor-backdrop" data-tutor-fechar></div>
+  <section class="tutor-painel" role="dialog" aria-modal="false" aria-labelledby="tutorTitulo" tabindex="-1">
+    <div class="tutor-grip" aria-hidden="true"></div>
+    <header class="tutor-head">
+      <span class="tutor-avatar" aria-hidden="true">🤖</span>
+      <div class="tutor-head-txt">
+        <h2 id="tutorTitulo">Tutor Allan</h2>
+        <p>Mentor de IA: guia sem entregar tudo</p>
+      </div>
+      <button type="button" class="tutor-x" data-tutor-fechar aria-label="Fechar o tutor">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </header>
+
+    <div class="tutor-ctx">
+      <label for="tutorCtx">Sobre</label>
+      <select id="tutorCtx">
+        <option value="">Laboratório em geral</option>
+        {% for m in missoes %}<option value="{{ m.id }}">Missão {{ loop.index }} · {{ m.titulo }}</option>{% endfor %}
+      </select>
+    </div>
+
+    <div class="tutor-msgs" id="tutorMsgs" role="log" aria-live="polite" aria-relevant="additions" aria-label="Conversa com o tutor" tabindex="0"></div>
+
+    <div class="tutor-acoes" role="group" aria-label="Ajuda rápida">
+      <button type="button" class="tutor-chip" data-nivel="1" aria-pressed="false"><span aria-hidden="true">💡</span> Me dá uma pista</button>
+      <button type="button" class="tutor-chip" data-nivel="2" aria-pressed="false"><span aria-hidden="true">🎯</span> Mais direto</button>
+      <button type="button" class="tutor-chip" data-nivel="3" aria-pressed="false"><span aria-hidden="true">⌨️</span> Mostra o comando</button>
+    </div>
+
+    <form class="tutor-form" id="tutorForm" autocomplete="off">
+      <label class="sr-only" for="tutorInput">Sua dúvida para o tutor</label>
+      <textarea id="tutorInput" rows="2" maxlength="500" placeholder="Descreva onde você travou…" enterkeyhint="send"></textarea>
+      <button type="submit" class="tutor-enviar" id="tutorEnviar" aria-label="Enviar pergunta">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>
+      </button>
+    </form>
+    <p class="tutor-rodape" id="tutorRodape"></p>
+  </section>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
@@ -435,5 +493,6 @@
   };
 </script>
 <script src="{{ url_for('static', filename='js/terminal.js') }}"></script>
+{% if tutor_disponivel %}<script src="{{ url_for('static', filename='js/tutor.js') }}"></script>{% endif %}
 {% endif %}
 {% endblock %}

@@ -31,6 +31,19 @@
           <a href="{{ url_for('ia.index') }}" class="btn btn-ai">{{ ico('sparkles') }} Gerar com IA</a>
         </div>
       </div>
+
+      <div class="tx perfil-term" data-typing aria-hidden="true">
+        <div class="tx-bar"><span class="tx-dots"><i></i><i></i><i></i></span><span class="tx-title">{{ perfil.nome|lower|replace(' ', '-') }}@lab: ~</span></div>
+        <div class="tx-body">
+          <div class="tx-line" data-cmd><span class="tx-prompt">$</span><span class="tx-cmd">whoami</span></div>
+          <div class="tx-line tx-out">{{ perfil.nome }}</div>
+          <div class="tx-line" data-cmd><span class="tx-prompt">$</span><span class="tx-cmd">ls posts/ | wc -l</span></div>
+          <div class="tx-line tx-out"><span class="tx-ok">{{ total_posts }}</span></div>
+          <div class="tx-line" data-cmd><span class="tx-prompt">$</span><span class="tx-cmd">cat temas.txt</span></div>
+          {% for t in temas[:4] %}<div class="tx-line tx-out"><span class="tx-dim">-</span> {{ t }}</div>{% endfor %}
+          <div class="tx-line" data-cmd><span class="tx-prompt">$</span><span class="tx-cmd"></span></div>
+        </div>
+      </div>
     </div>
   </header>
 

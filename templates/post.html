@@ -61,7 +61,7 @@
         <h3 id="ctaIaTitulo">Praticar este assunto com IA</h3>
         <p>Transforme o que você acabou de ler em exercício: a IA cria uma atividade prática sobre <strong>{{ post.titulo }}</strong>.</p>
       </div>
-      <a href="{{ url_for('ia.index', tema=post.titulo) }}" class="btn btn-ai btn-lg">Gerar atividade {{ ico('arrow-right') }}</a>
+      <a href="{{ url_for('ia.index', tema=post.titulo, post=post.slug) }}" class="btn btn-ai btn-lg">Gerar atividade {{ ico('arrow-right') }}</a>
     </section>
 
     <!-- Autor -->
@@ -98,7 +98,7 @@
         <div class="toc-progress-txt"><span data-read-pct>0%</span> lido <i>&middot;</i> <span data-read-left>{{ minutos }} min restantes</span></div>
       </div>
     </div>
-    <a class="toc-ai" href="{{ url_for('ia.index', tema=post.titulo) }}">
+    <a class="toc-ai" href="{{ url_for('ia.index', tema=post.titulo, post=post.slug) }}">
       <span class="toc-ai-ico">{{ ico('sparkles') }}</span>
       <span><strong>Praticar com IA</strong><small>Gere uma atividade sobre este tema</small></span>
     </a>
