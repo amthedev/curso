@@ -147,12 +147,14 @@
       </div>
 
       {% set xp_ia = st.xp_por_fonte.ia_atividade + st.xp_por_fonte.ia_questao %}
+      {% set xp_plano = st.xp_por_fonte.cronograma_missao + st.xp_por_fonte.cronograma_dia + st.xp_por_fonte.cronograma_bau %}
       <div class="al-origem">
         <h3>De onde vem seu XP</h3>
         <ul>
           {% for classe, rotulo, icone, valor in [
               ('o-missao', 'Missões no terminal', 'terminal', st.xp_por_fonte.missao),
               ('o-licao_concluida', 'Trilhas concluídas', 'route', st.xp_por_fonte.licao_concluida),
+              ('o-plano', 'Cronograma diário', 'calendar', xp_plano),
               ('o-ia', 'Atividades com IA', 'cpu', xp_ia)] %}
           <li class="{{ classe }}">
             <span class="al-origem-nome">{{ ico(icone) }} {{ rotulo }}</span>

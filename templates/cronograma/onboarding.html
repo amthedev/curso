@@ -62,6 +62,7 @@
   <defs>
     <symbol id="cr-i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.2 8.2 8 9 4.8-.8 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
     <symbol id="cr-i-code" viewBox="0 0 24 24"><path d="m8 7-5 5 5 5"/><path d="m16 7 5 5-5 5"/><path d="m14 4-4 16"/></symbol>
+    <symbol id="cr-i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
     <symbol id="cr-i-sprout" viewBox="0 0 24 24"><path d="M12 21v-9"/><path d="M12 12c0-4 2.5-6.5 7-6.5 0 4-2.5 6.5-7 6.5z"/><path d="M12 14.5C12 11 9.5 9 5 9c0 3.5 2.5 5.5 7 5.5z"/></symbol>
     <symbol id="cr-i-bolt" viewBox="0 0 24 24"><path d="M13 2 4.5 13.5H11L10 22l9-12h-6.5L13 2z"/></symbol>
     <symbol id="cr-i-mountain" viewBox="0 0 24 24"><path d="m3 20 6.5-12 4 7 2.5-4L21 20z"/><path d="m8.2 11 1.3-1 1.3 1"/></symbol>
@@ -182,7 +183,7 @@
           {% set mm = MIN.get(mn, {'nome': '', 'frase': ''}) %}
           {% set est = (mn * 0.7)|round|int %}
           <label class="cr-opt cr-opt-min" style="--pie:{{ ((mn / 60 * 100) if mn < 60 else 100)|round|int }}">
-            <input type="radio" name="minutos" value="{{ mn }}" required {% if sel_min|string == mn|string %}checked{% endif %} data-label="{{ mn }} min por dia" data-est="{{ est }}">
+            <input type="radio" name="minutos" value="{{ mn }}" required {% if sel_min|string == mn|string %}checked{% endif %} data-label="{{ mn }} min por dia" data-est="{{ est }}" data-ic="clock">
             <span class="cr-opt-card">
               <span class="cr-opt-check" aria-hidden="true">{{ ic('check') }}</span>
               <span class="cr-pie" aria-hidden="true"><span class="cr-pie-in"><b>{{ mn }}</b><small>min</small></span></span>

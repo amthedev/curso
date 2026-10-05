@@ -356,6 +356,7 @@
 .al-origem li { --c: var(--accent); --c-rgb: 57,217,138; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: center; }
 .al-origem li.o-licao_concluida { --c: var(--al-gold); --c-rgb: 245,197,66; }
 .al-origem li.o-ia { --c: var(--purple); --c-rgb: 188,140,255; }
+.al-origem li.o-plano { --c: var(--accent); --c-rgb: 57,217,138; }
 .al-origem-nome { display: flex; align-items: center; gap: 9px; font-size: .86rem; color: var(--text); min-width: 0; }
 .al-origem-nome .al-ico { width: 16px; height: 16px; color: var(--c); }
 .al-origem-xp { font-family: var(--mono); font-size: .82rem; font-weight: 600; color: var(--c); white-space: nowrap; }
@@ -385,6 +386,7 @@
 }
 .al-evento-ico .al-ico { width: 19px; height: 19px; }
 .al-evento-ico.f-licao_concluida { color: var(--al-gold); background: rgba(245,197,66,.1); border-color: rgba(245,197,66,.3); }
+.al-evento-ico.f-cronograma_missao, .al-evento-ico.f-cronograma_dia, .al-evento-ico.f-cronograma_bau { color: var(--accent); background: var(--accent-dim); border-color: var(--border-hi); }
 .al-evento-ico.f-ia_atividade, .al-evento-ico.f-ia_questao { color: var(--purple); background: rgba(188,140,255,.1); border-color: rgba(188,140,255,.3); }
 .al-evento-txt { min-width: 0; }
 .al-evento-txt b { display: block; font-size: .9rem; font-weight: 600; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

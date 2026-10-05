@@ -560,6 +560,8 @@
         var k = b.getAttribute("data-sum");
         var r = k === "nivel" ? n : (k === "objetivo" ? o : m);
         b.textContent = r ? r.getAttribute("data-label") : "—";
+        var u = $("use", b.parentNode.parentNode), ic = r && r.getAttribute("data-ic");
+        if (u && ic) u.setAttribute("href", "#cr-i-" + ic);
       });
       var est = $("[data-sum-est]", form);
       if (!est) return;

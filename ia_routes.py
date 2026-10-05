@@ -869,7 +869,7 @@ def responder(atividade_id):
     # Ganchos do cronograma (módulo opcional): aprendem com cada resposta e avisam a conclusão.
     atual = _atividade_do_usuario(atividade_id) or row
     gancho_cronograma("on_resposta", db, uid, atual, q, bool(resultado["correta"]), int(resultado["pontuacao"]))
-    gamificacao = _recompensar(db, uid, atividade_id, final) if final else None
+    gamificacao = _recompensar(db, uid, atividade_id, final, origem=_origem(atual)) if final else None
     extra = gancho_cronograma("on_conclusao", db, uid, atual) if final else None
 
     return jsonify({
@@ -911,16 +911,27 @@ def gancho_cronograma(nome, db, uid, atividade_row, *args):
         return None
 
 
-def _recompensar(db, uid, atividade_id, final):
+def _origem(row) -> str:
+    try:
+        return row["origem"] or "livre"
+    except (IndexError, KeyError, TypeError):
+        return "livre"
+
+
+def _recompensar(db, uid, atividade_id, final, origem="livre"):
     """Integração opcional com gamificacao.py (XP unificado/conquistas). Idempotente
-    por (usuário, fonte, ref): refazer a atividade não credita o XP duas vezes."""
+    por (usuário, fonte, ref): refazer a atividade não credita o XP duas vezes.
+    Missões do cronograma usam a fonte "cronograma_missao" (não contam como IA)."""
     try:
         import gamificacao
     except ImportError:
         return None
-    eventos = [("ia_atividade", atividade_id, final["xp_ganho"])]
-    if final["nota"] >= 100:
-        eventos.append(("ia_perfeita", atividade_id, 0))
+    if origem == "cronograma":
+        eventos = [("cronograma_missao", atividade_id, final["xp_ganho"])]
+    else:
+        eventos = [("ia_atividade", atividade_id, final["xp_ganho"])]
+        if final["nota"] >= 100:
+            eventos.append(("ia_perfeita", atividade_id, 0))
     try:
         return gamificacao.recompensar(db, uid, eventos)
     except Exception:  # tabelas ainda não criadas, versão diferente etc.

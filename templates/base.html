@@ -61,13 +61,16 @@
       <a href="{{ url_for('index') }}" class="nav-link {{ 'active' if _ep == 'index' and not _cat_ativa else '' }}" {% if _ep == 'index' and not _cat_ativa %}aria-current="page"{% endif %}>
         {{ ico('home') }}<span>Início</span>
       </a>
-      <a href="{{ url_for('cronograma.index') }}" class="nav-link nav-cron {{ 'active' if request.blueprint == 'cronograma' else '' }}" {% if request.blueprint == 'cronograma' %}aria-current="page"{% endif %}>
+      {#- Missões do cronograma são renderizadas pelo blueprint "ia", mas pertencem ao plano. -#}
+      {% set _no_plano = request.blueprint == 'cronograma' or (do_plano is defined and do_plano) %}
+      {% set _na_ia = request.blueprint == 'ia' and not _no_plano %}
+      <a href="{{ url_for('cronograma.index') }}" class="nav-link nav-cron {{ 'active' if _no_plano else '' }}" {% if _no_plano %}aria-current="page"{% endif %}>
         {{ ico('calendar') }}<span>Cronograma</span><em class="nav-new">novo</em>
       </a>
       <a href="{{ url_for('atividades_index') }}" class="nav-link {{ 'active' if _ep in ('atividades_index', 'licao_detalhe') else '' }}" {% if _ep in ('atividades_index', 'licao_detalhe') %}aria-current="page"{% endif %}>
         {{ ico('target') }}<span>Atividades</span>
       </a>
-      <a href="{{ url_for('ia.index') }}" class="nav-link nav-ia {{ 'active' if request.blueprint == 'ia' else '' }}" {% if request.blueprint == 'ia' %}aria-current="page"{% endif %}>
+      <a href="{{ url_for('ia.index') }}" class="nav-link nav-ia {{ 'active' if _na_ia else '' }}" {% if _na_ia %}aria-current="page"{% endif %}>
         {{ ico('sparkles') }}<span>IA</span>
       </a>
 

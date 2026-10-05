@@ -46,6 +46,7 @@ FONTES = {
     "licao_concluida": "Trilha concluída",
     "ia_questao": "Questão com IA",
     "ia_atividade": "Atividade com IA",
+    "cronograma_missao": "Missão do plano",
     "cronograma_dia": "Dia do plano",
     "cronograma_bau": "Baú do dia",
 }
@@ -185,6 +186,9 @@ def _backfill_ia(db) -> None:
             return
         quando = "a.criado_em" if "criado_em" in cols else "datetime('now')"
         filtros = ["a.xp_ganho > 0"]
+        # Missões do cronograma recebem XP como "cronograma_missao", não como IA.
+        if "origem" in cols:
+            filtros.append("COALESCE(a.origem, 'livre') != 'cronograma'")
         # Só atividades finalizadas: XP parcial não pode virar evento (ficaria travado).
         if "concluida" in cols:
             filtros.append("a.concluida = 1")
@@ -377,7 +381,8 @@ def _eventos_recentes(db, uid: int, hoje: date, limite: int = 10) -> list[dict]:
         (uid, limite),
     ).fetchall()
     licoes, missoes = _titulos_licoes(db) if any(r[0] in ("missao", "licao_concluida") for r in linhas) else ({}, {})
-    ia_titulos = _titulos_ia(db, [r[1].split(":")[0] for r in linhas if r[0] in ("ia_atividade", "ia_questao")])
+    ia_titulos = _titulos_ia(db, [r[1].split(":")[0] for r in linhas
+                                  if r[0] in ("ia_atividade", "ia_questao", "cronograma_missao")])
 
     eventos = []
     for fonte, ref, xp, criado_em in linhas:
@@ -391,6 +396,9 @@ def _eventos_recentes(db, uid: int, hoje: date, limite: int = 10) -> list[dict]:
         elif fonte == "ia_atividade":
             titulo = "Atividade com IA concluída"
             detalhe = ia_titulos.get(ref, f"Atividade #{ref}")
+        elif fonte == "cronograma_missao":
+            titulo = "Missão do plano concluída"
+            detalhe = ia_titulos.get(ref, "Cronograma")
         elif fonte == "ia_questao":
             ativ = ref.split(":")[0]
             titulo = "Questão com IA acertada"

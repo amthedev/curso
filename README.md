@@ -4,6 +4,7 @@ Blog pessoal sobre cyber segurança, Linux, redes e Python em Flask + SQLite. In
 - **Blog** com painel admin sem senha
 - **Atividades** — trilhas de estudo com laboratório prático em terminal Linux simulado
 - **Atividades com IA** — questões geradas sob demanda (múltipla escolha, V/F, discursiva, comando, ordenar)
+- **Cronograma adaptativo** — treino diário personalizado (`/cronograma`)
 - **Gamificação** — XP unificado, níveis, streak, conquistas e ranking
 
 ## Rodando localmente

@@ -29,6 +29,8 @@
 {% macro ico_fonte(fonte, cls='') -%}
 {%- if fonte == 'missao' %}{{ ico('terminal', cls) }}
 {%- elif fonte == 'licao_concluida' %}{{ ico('route', cls) }}
+{%- elif fonte in ('cronograma_missao', 'cronograma_dia') %}{{ ico('calendar', cls) }}
+{%- elif fonte == 'cronograma_bau' %}{{ ico('trophy', cls) }}
 {%- else %}{{ ico('cpu', cls) }}
 {%- endif -%}
 {%- endmacro %}
