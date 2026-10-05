@@ -77,6 +77,9 @@ Geradas sob demanda em `/atividades/ia`. Tipos de questão:
 - Discursiva (corrigida por IA)
 - Comando Linux (verificada por regex)
 - Ordenação de passos
+- Associar pares (termo → definição, com nota parcial)
+- Completar lacunas (preencher texto, com nota parcial)
+- Caça ao erro (encontrar erro em log/código, com nota parcial)
 
 Recursos:
 - **Dica com -50% XP** — revela a dica antes da resposta, reduzindo a recompensa
@@ -84,6 +87,32 @@ Recursos:
 - **Gabarito seguro** — nunca enviado ao navegador antes da resposta; só volta na correção
 - **"Praticar este post"** — gera 8 questões baseadas num post do blog (com cache por post/nível, não gasta cota)
 - **Tutor "Travei?"** — 3 níveis de dica dentro do laboratório (sem custo extra nas gerações)
+
+### Cronograma adaptativo (`/cronograma`)
+
+Um plano de estudos diário que se adapta ao desempenho do aluno. Para o aluno é "o seu plano personalizado".
+
+**Onboarding:**
+- Nível inicial (Iniciante, Intermediário, Avançado)
+- Objetivo (Red Team, Blue Team, AppSec, Generalista)
+- Minutos disponíveis por dia
+
+**Três missões por dia:**
+- **Aquecimento** — revisão de tópicos fracos ou com revisão vencida (variações do que o aluno errou)
+- **Conteúdo novo** — resumo teórico curto + questões do próximo tópico da ementa
+- **Desafio do dia** — questões interativas mais difíceis; aos domingos vira "Boss da semana" com XP em dobro
+
+**Adaptação:**
+- Repetição espaçada por tópico (SM-2 simplificado)
+- Dificuldade sobe acima de 85% de acerto; desce abaixo de 50%
+- Baú do dia: XP sorteado × multiplicador de streak (até 5 dias consecutivos)
+
+**Ementa:** 14 módulos e 84 tópicos de Segurança da Informação
+
+**Geração:**
+- Uma chamada diária por aluno (não conta no limite do gerador livre)
+- Sem chave de IA ou se falhar: usa banco de reserva (o dia nunca fica vazio)
+- A interface do cronograma não menciona IA
 
 ### Painel do Aluno
 
@@ -146,6 +175,9 @@ ia_routes.py                    # blueprint /atividades/ia (gerar, responder, di
 ia_service.py                   # integração OpenRouter, cache, mock
 tutor_routes.py                 # blueprint /tutor (Travei? dentro do lab)
 aluno_routes.py                 # blueprint /eu, /ranking, /api/eu/stats
+cronograma.py                   # cronograma adaptativo: lógica de missões, adaptação, streak
+cronograma_routes.py            # blueprint /cronograma (onboarding, hoje, baú)
+cronograma_data.py              # ementa: 14 módulos e 84 tópicos
 
 seed_data.py                    # perfil e 21 posts iniciais
 licoes_data.py                  # lições (trilhas) e missões do laboratório
@@ -164,6 +196,9 @@ templates/
   ia/
     index.html                  # lista de atividades + formulário de geração
     ver.html                    # resolver atividade com IA
+  cronograma/
+    onboarding.html             # /cronograma (primeira visita: nível, objetivo, minutos/dia)
+    index.html                  # /cronograma (plano de hoje com 3 missões)
   aluno/
     painel.html                 # /eu (XP, heatmap, streak, conquistas)
     ranking.html                # /ranking
@@ -181,6 +216,7 @@ static/
     style.css                   # estilos do blog
     atividades.css              # terminal e trilhas
     ia.css                      # atividades com IA
+    cronograma.css              # cronograma adaptativo
     aluno.css                   # painel, ranking, gamificação
     admin.css
     auth.css
@@ -189,6 +225,7 @@ static/
     main.js                     # menu mobile, utilidades
     terminal.js                 # terminal Linux simulado (100% JS)
     ia.js                       # front-end das atividades com IA
+    cronograma.js               # front-end do cronograma adaptativo
     tutor.js                    # modal "Travei?" do lab
     gamificacao.js              # animações de conquistas, toasts
     admin.js
