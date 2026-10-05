@@ -106,9 +106,15 @@
       <a href="{{ url_for('index') }}" target="_blank" rel="noopener" class="admin-site-link">
         <svg class="ic"><use href="#a-ext"/></svg><span>Ver site publicado</span>
       </a>
-      <div class="sem-senha-badge" role="note" title="Este painel não pede senha. Não divulgue o endereço.">
+      {% if admin_protegido %}
+      <div class="sem-senha-badge protegido-badge" role="note" title="Acesso restrito aos emails definidos em ADMIN_EMAILS.">
+        <svg class="ic"><use href="#a-shield"/></svg><span>Protegido (ADMIN_EMAILS)</span>
+      </div>
+      {% else %}
+      <div class="sem-senha-badge" role="note" title="Este painel não pede senha. Defina ADMIN_EMAILS no Square Cloud para restringir o acesso.">
         <svg class="ic"><use href="#a-alert"/></svg><span>Acesso sem senha</span>
       </div>
+      {% endif %}
     </div>
   </aside>
 

@@ -5,3 +5,8 @@ blog.db
 venv/
 .DS_Store
 .claude/
+# Estado local: chave secreta gerada automaticamente (NUNCA commitar)
+instance/
+# SQLite em modo WAL
+*.db-wal
+*.db-shm

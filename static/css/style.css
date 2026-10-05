@@ -184,6 +184,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 }
 .skip-link:focus { top: 12px; }
 #main { outline: none; }
+[hidden] { display: none !important; }
 
 .muted   { color: var(--text-2); }
 .muted-3 { color: var(--text-3); }
@@ -2042,6 +2043,8 @@ input[type="checkbox"].checkbox:checked::before, input[type="radio"].radio:check
   color: rgb(var(--k));
   font: 700 .86rem var(--mono);
 }
+.callout p { margin: 0 0 .7em; }
+.callout p:last-child { margin-bottom: 0; }
 .callout-title {
   display: block;
   margin-bottom: 3px;
@@ -2062,6 +2065,8 @@ input[type="checkbox"].checkbox:checked::before, input[type="radio"].radio:check
 .callout-quote::before  { content: '“'; font: 700 2rem/1 var(--display); background: none; width: auto; height: auto; left: 16px; top: 12px; }
 
 /* tabelas */
+.post-body .ta-center { text-align: center; }
+.post-body .ta-right  { text-align: right; }
 .table-wrap {
   margin: 1.7em 0;
   overflow-x: auto;

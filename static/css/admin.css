@@ -75,6 +75,7 @@
 .admin-site-link:hover { background: var(--bg-2); color: var(--accent); }
 .sem-senha-badge { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; font-size: .74rem; font-weight: 600; color: var(--warn); background: rgba(227,179,65,.07); border: 1px solid rgba(227,179,65,.26); cursor: help; }
 .sem-senha-badge .ic { font-size: 1rem; }
+.protegido-badge { color: var(--accent); background: var(--accent-dim); border-color: var(--border-hi); }
 
 .admin-scrim { display: none; }
 

@@ -3,8 +3,9 @@ Atividades geradas na hora com IA (OpenRouter).
 Blueprint "ia" montado em /atividades/ia.
 
 Rotas
-    GET  /atividades/ia/                     ia.index     formulário + histórico
-    POST /atividades/ia/gerar                ia.gerar     JSON → gera e salva
+    GET  /atividades/ia/                     ia.index     formulário + histórico (?tema= | ?post=<slug>)
+    POST /atividades/ia/gerar                ia.gerar     JSON → gera e salva (com `post`: atividade baseada
+                                                          num post do blog, com cache por post/nível/versão)
     GET  /atividades/ia/<id>                 ia.ver       resolver a atividade
     POST /atividades/ia/<id>/responder       ia.responder JSON → corrige 1 questão
     POST /atividades/ia/<id>/dica            ia.dica      JSON → revela dica (-50% XP)
@@ -17,6 +18,7 @@ O gabarito nunca vai para o HTML/JS antes da resposta: o navegador só recebe
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -47,6 +49,13 @@ _HOJE_SQL = "date(criado_em, '-3 hours') = date('now', '-3 hours')"
 # Uma geração por usuário por vez (cada chamada custa créditos)
 _gerando: set[int] = set()
 _gerando_lock = threading.Lock()
+
+# "Praticar este post": formato fixo (para o cache valer para todo mundo) e travas
+# por (post, nível, versão do texto) — se 30 alunos pedem juntos, só o 1º chama a IA.
+POST_QUANTIDADE = 8
+POST_CORPO_MIN = 120          # posts menores que isso não rendem uma atividade
+POST_CACHE_DIARIO = 30        # atividades "de graça" (cache) por usuário por dia
+_trava_pratica: dict[tuple, threading.Lock] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +121,17 @@ def init_ia_db(db: sqlite3.Connection):
             ON ia_uso (usuario_id, tipo, criado_em);
         CREATE INDEX IF NOT EXISTS idx_ia_uso_tipo
             ON ia_uso (tipo, criado_em);
+
+        -- "Praticar este post": atividade pronta por (post, nível, versão do texto).
+        -- corpo_hash = sha1(corpo)[:12]: editar o post muda o hash e gera de novo.
+        CREATE TABLE IF NOT EXISTS post_pratica_cache (
+            post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+            nivel TEXT NOT NULL,
+            corpo_hash TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (post_id, nivel, corpo_hash)
+        );
         """
     )
     db.commit()
@@ -377,8 +397,21 @@ def index():
     ).fetchall()
     stats, _ = resumo_ia_usuario(db, uid)
 
-    tema_inicial = ia.limpar_tema(request.args.get("tema", ""))
-    nivel_inicial = ia.normalizar_nivel(request.args.get("nivel", "")) or "Intermediário"
+    # "Praticar este post": ?post=<slug> (post inexistente é ignorado → formulário normal)
+    post_ctx = None
+    slug_post = (request.args.get("post") or "").strip()[:200]
+    if slug_post:
+        p = _post_por_slug(db, slug_post)
+        if p is not None:
+            post_ctx = {"slug": p["slug"], "titulo": p["titulo"], "nivel": p["nivel"]}
+
+    if post_ctx:
+        tema_inicial = ia.limpar_tema(post_ctx["titulo"])
+    else:
+        tema_inicial = ia.limpar_tema(request.args.get("tema", ""))
+    nivel_inicial = (ia.normalizar_nivel(request.args.get("nivel", ""))
+                     or (ia.normalizar_nivel(post_ctx["nivel"]) if post_ctx else None)
+                     or "Intermediário")
 
     return render_template(
         "ia/index.html",
@@ -393,6 +426,7 @@ def index():
         tema_inicial=tema_inicial,
         nivel_inicial=nivel_inicial,
         tema_max=ia.TEMA_MAX,
+        post_ctx=post_ctx,
     )
 
 
@@ -406,6 +440,14 @@ def ver(atividade_id):
     atividade = _carregar(row)
     respostas = _respostas(db, atividade_id)
     dicas = set(json.loads(row["dicas_usadas"] or "[]"))
+
+    # Atividade criada a partir de um post ("Praticar este post"): link de volta ao post
+    post_info = None
+    info = atividade.get("post")
+    if isinstance(info, dict) and isinstance(info.get("slug"), str):
+        existente = db.execute("SELECT slug, titulo FROM posts WHERE slug = ?", (info["slug"],)).fetchone()
+        if existente is not None:
+            post_info = {"slug": existente["slug"], "titulo": existente["titulo"]}
 
     questoes_cliente = []
     for q in atividade["questoes"]:
@@ -437,6 +479,7 @@ def ver(atividade_id):
             "quantidade": atividade.get("quantidade_pedida") or row["quantidade"],
             "tipos": json.loads(row["tipos"] or "[]"),
             "base_id": row["id"],
+            "post": post_info["slug"] if post_info else None,
         },
         "ia_disponivel": ia.ia_configurada(),
     }
@@ -448,6 +491,7 @@ def ver(atividade_id):
         progresso=prog,
         tipos=ia.TIPOS,
         proximo_nivel=ia.proximo_nivel(row["nivel"]),
+        post_info=post_info,
     )
 
 

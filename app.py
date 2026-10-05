@@ -1,7 +1,8 @@
 """
 Blog de cyber segurança ofensiva — Allan Dev
 Flask + SQLite. Acesso ao conteúdo exige cadastro/login.
-Admin fica em rota separada, sem senha, não listada na navegação.
+Admin fica em rota separada, não listada na navegação — sem senha por padrão;
+só exige login se ADMIN_EMAILS estiver definida (ver .env.example).
 
 Executar:
     python3 app.py
@@ -14,22 +15,169 @@ import re
 import sqlite3
 import unicodedata
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 
-from flask import Flask, render_template, request, redirect, url_for, flash, abort, session
+from flask import (Flask, Response, abort, flash, jsonify, make_response, redirect,
+                   render_template, request, session, url_for)
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from core import DB_PATH, close_db, get_db, login_requerido
+from core import (DB_PATH, LimitadorTentativas, SECRET_KEY_FILE, carregar_secret_key,
+                  close_db, get_db, login_requerido)
 from ia_routes import bp as ia_bp, init_ia_db, registrar_admin as registrar_admin_ia, resumo_ia_usuario
 import gamificacao as gami
 from aluno_routes import bp as aluno_bp
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-troque-em-producao")
+
+
+# ---------------------------------------------------------------------------
+# Configuração de segurança (variáveis de ambiente documentadas em .env.example)
+# ---------------------------------------------------------------------------
+
+def _env_ligada(nome: str) -> bool:
+    return os.environ.get(nome, "").strip().lower() in {"1", "true", "yes", "on", "sim"}
+
+
+# SECRET_KEY: env > instance/secret_key (gerada e persistida) > memória.
+# Nunca existe um valor padrão fixo no código (permitiria forjar cookies de sessão).
+app.secret_key, _secret_origem = carregar_secret_key()
+if _secret_origem == "arquivo-novo":
+    app.logger.warning(
+        "SECRET_KEY não definida: gerei uma chave aleatória e salvei em %s (0600). "
+        "Defina SECRET_KEY no ambiente para controlá-la.", SECRET_KEY_FILE)
+elif _secret_origem == "arquivo":
+    app.logger.warning(
+        "SECRET_KEY não definida: usando a chave persistida em %s. "
+        "Defina SECRET_KEY no ambiente para controlá-la.", SECRET_KEY_FILE)
+elif _secret_origem == "memoria":
+    app.logger.warning(
+        "SECRET_KEY não definida e não consegui gravar %s: chave só em memória — "
+        "as sessões caem a cada reinício. Defina SECRET_KEY no ambiente.", SECRET_KEY_FILE)
+elif _secret_origem == "env-invalida":
+    app.logger.warning(
+        "SECRET_KEY está com o valor de exemplo (público) e foi IGNORADA. "
+        "Defina uma chave aleatória própria.")
+
 app.permanent_session_lifetime = timedelta(days=30)
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    # Secure só com HTTPS=1: em http:// o navegador não devolveria o cookie.
+    SESSION_COOKIE_SECURE=_env_ligada("HTTPS"),
+)
+
+# Atrás do proxy da plataforma: TRUST_PROXY=1 (nº de proxies confiáveis) faz o app
+# enxergar IP/host/esquema reais via X-Forwarded-*. Só ligue se houver mesmo um proxy
+# na frente — senão qualquer cliente forja o IP e burla o limite de tentativas.
+_trust_proxy = os.environ.get("TRUST_PROXY", "").strip().lower()
+_proxy_hops = int(_trust_proxy) if _trust_proxy.isdigit() else (1 if _env_ligada("TRUST_PROXY") else 0)
+if _proxy_hops > 0:
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=_proxy_hops, x_proto=_proxy_hops,
+                            x_host=_proxy_hops)
+
+# Painel admin: aberto por padrão (decisão do dono). Com ADMIN_EMAILS definida
+# (emails separados por vírgula), só usuários logados nessa lista entram.
+ADMIN_PREFIXO = "/painel-allan-dev"
+ADMIN_EMAILS = frozenset(
+    e.strip().lower() for e in os.environ.get("ADMIN_EMAILS", "").split(",") if e.strip()
+)
+ADMIN_PROTEGIDO = bool(ADMIN_EMAILS)
+if ADMIN_PROTEGIDO:
+    app.logger.info("Admin protegido: %d email(s) em ADMIN_EMAILS.", len(ADMIN_EMAILS))
+else:
+    app.logger.warning(
+        "ADMIN_EMAILS não definida: %s está ABERTO, sem senha. Defina ADMIN_EMAILS "
+        "(emails separados por vírgula) para exigir login de admin.", ADMIN_PREFIXO)
+
+# Limites de tentativas (em memória, por processo).
+LOGIN_MAX_FALHAS = 5          # falhas por (IP, email) ...
+LOGIN_JANELA = 15 * 60        # ... a cada 15 minutos
+_cad_env = os.environ.get("CADASTRO_MAX_POR_HORA", "").strip()
+CADASTRO_MAX = int(_cad_env) if _cad_env.isdigit() and int(_cad_env) > 0 else 10
+CADASTRO_JANELA = 60 * 60
+_limite_login = LimitadorTentativas(LOGIN_MAX_FALHAS, LOGIN_JANELA)
+_limite_cadastro = LimitadorTentativas(CADASTRO_MAX, CADASTRO_JANELA)
+MSG_MUITAS_TENTATIVAS = "Muitas tentativas. Tente de novo em alguns minutos."
+
 app.teardown_appcontext(close_db)
 app.register_blueprint(ia_bp)
 registrar_admin_ia(app)  # /painel-allan-dev/ia  (endpoint "admin_ia")
 app.register_blueprint(aluno_bp)  # /eu, /ranking, /api/eu/stats
+
+
+# ---------------------------------------------------------------------------
+# Hooks globais de segurança
+# ---------------------------------------------------------------------------
+
+def _sem_porta_padrao(host: str) -> str:
+    host = (host or "").strip().lower()
+    for sufixo in (":80", ":443"):
+        if host.endswith(sufixo):
+            return host[: -len(sufixo)]
+    return host
+
+
+def _hosts_permitidos() -> set[str]:
+    """Hosts que contam como 'mesma origem' (atrás de proxy o Host pode variar)."""
+    hosts = {request.host}
+    hosts.add(request.environ.get("HTTP_HOST", ""))
+    hosts.add(request.environ.get("werkzeug.proxy_fix.orig", {}).get("HTTP_HOST", ""))
+    fwd = request.headers.get("X-Forwarded-Host", "")
+    if fwd:
+        hosts.add(fwd.split(",")[0])
+    site = os.environ.get("SITE_URL", "").strip()
+    if site:
+        hosts.add(urlparse(site if "//" in site else "//" + site).netloc)
+    return {_sem_porta_padrao(h) for h in hosts if h}
+
+
+@app.before_request
+def _csrf_mesma_origem():
+    """CSRF leve, sem token: POST/PUT/PATCH/DELETE com Origin (ou Referer) de
+    outro host são recusados. Sem nenhum dos dois, passa (clientes não-navegador)."""
+    if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+        return None
+    origem = request.headers.get("Origin") or request.headers.get("Referer")
+    if not origem:
+        return None
+    if _sem_porta_padrao(urlparse(origem).netloc) in _hosts_permitidos():
+        return None
+    app.logger.warning("CSRF: %s %s bloqueado (origem=%r)", request.method, request.path, origem[:200])
+    if request.is_json or request.accept_mimetypes.best == "application/json":
+        return jsonify({"ok": False, "erro": "Origem não permitida.", "codigo": "origem"}), 403
+    return Response("403 — Requisição bloqueada: origem não permitida.", 403,
+                    mimetype="text/plain")
+
+
+@app.before_request
+def _proteger_admin():
+    """Opt-in: com ADMIN_EMAILS definida, /painel-allan-dev* só para admins (senão 404)."""
+    if not ADMIN_PROTEGIDO:
+        return None
+    if not (request.path.startswith(ADMIN_PREFIXO)
+            or (request.endpoint or "").startswith("admin_")):
+        return None
+    usuario = get_usuario_atual()
+    if usuario is None or usuario["email"].strip().lower() not in ADMIN_EMAILS:
+        abort(404)
+    return None
+
+
+@app.after_request
+def _headers_seguranca(resp):
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("X-Frame-Options", "DENY")
+    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    resp.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    # TODO (futuro): Content-Security-Policy. Hoje NÃO há CSP porque o site usa
+    # <script>/<style> inline e Google Fonts (fonts.googleapis.com / fonts.gstatic.com);
+    # uma CSP restritiva agora quebraria as páginas. Caminho sugerido: mover os scripts
+    # inline para static/js, usar nonce nos que restarem e então aplicar algo como
+    #   default-src 'self'; style-src 'self' https://fonts.googleapis.com;
+    #   font-src https://fonts.gstatic.com; img-src 'self' data:; frame-ancestors 'none'
+    # (começando em modo Content-Security-Policy-Report-Only).
+    return resp
 
 
 # ---------------------------------------------------------------------------
@@ -38,7 +186,14 @@ app.register_blueprint(aluno_bp)  # /eu, /ranking, /api/eu/stats
 
 def init_db():
     fresh = not DB_PATH.exists()
-    db = sqlite3.connect(DB_PATH)
+    db = sqlite3.connect(DB_PATH, timeout=10)
+    try:
+        # WAL: leitores não bloqueiam o escritor (e vice-versa). Persiste no arquivo
+        # do banco, então basta ativar aqui. Chamadas de IA são lentas — sem WAL
+        # uma gravação longa travaria o site inteiro.
+        db.execute("PRAGMA journal_mode=WAL")
+    except sqlite3.DatabaseError as exc:  # ex.: sistema de arquivos sem suporte a WAL
+        app.logger.warning("Não foi possível ativar o modo WAL no SQLite: %s", exc)
     db.executescript(
         """
         CREATE TABLE IF NOT EXISTS perfil (
@@ -230,7 +385,9 @@ def get_usuario_atual():
 
 @app.context_processor
 def inject_globals():
-    return {"usuario_atual": get_usuario_atual()}
+    # admin_protegido: True quando ADMIN_EMAILS está definida (o template do admin
+    # pode mostrar o status: protegido por login vs. aberto).
+    return {"usuario_atual": get_usuario_atual(), "admin_protegido": ADMIN_PROTEGIDO}
 
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -254,6 +411,16 @@ def cadastro():
         email = request.form.get("email", "").strip().lower()
         senha = request.form.get("senha", "")
         confirmar = request.form.get("confirmar", "")
+
+        # Limite leve por IP (anti-spam de contas / enumeração de emails).
+        ip = request.remote_addr or "desconhecido"
+        espera = _limite_cadastro.restante(ip)
+        if espera:
+            flash(MSG_MUITAS_TENTATIVAS, "erro")
+            resp = make_response(render_template("auth/cadastro.html", nome=nome, email=email), 429)
+            resp.headers["Retry-After"] = str(espera)
+            return resp
+        _limite_cadastro.registrar(ip)
 
         erro = None
         if not nome or len(nome) < 2:
@@ -287,26 +454,51 @@ def cadastro():
     return render_template("auth/cadastro.html", nome="", email="")
 
 
+def _destino_seguro(valor) -> str:
+    """Só aceita caminhos locais: começa com '/', mas não com '//' nem '/\\'
+    (que o navegador trata como URL de outro site). Qualquer outra coisa vira '/'."""
+    if (isinstance(valor, str)
+            and valor.startswith("/")
+            and not valor.startswith(("//", "/\\"))
+            and "\\" not in valor
+            and not any(ord(c) < 32 or ord(c) == 127 for c in valor)  # \t, \n... o navegador os remove
+            and not urlparse(valor).netloc):
+        return valor
+    return url_for("index")
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if session.get("uid"):
         return redirect(url_for("index"))
 
-    proximo = request.args.get("proximo") or request.form.get("proximo") or url_for("index")
+    # Já sanitizado: o valor também volta para o template (campo hidden).
+    proximo = _destino_seguro(request.args.get("proximo") or request.form.get("proximo"))
 
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
         senha = request.form.get("senha", "")
 
+        # Força bruta: no máx. LOGIN_MAX_FALHAS falhas por (IP, email) em 15 min.
+        # Checa ANTES de validar a senha, então bloqueado nem com a senha certa entra.
+        chave = f"{request.remote_addr or 'desconhecido'}|{email[:254]}"
+        espera = _limite_login.restante(chave)
+        if espera:
+            flash(MSG_MUITAS_TENTATIVAS, "erro")
+            resp = make_response(render_template("auth/login.html", email=email, proximo=proximo), 429)
+            resp.headers["Retry-After"] = str(espera)
+            return resp
+
         db = get_db()
         usuario = db.execute("SELECT * FROM usuarios WHERE email = ?", (email,)).fetchone()
 
         if usuario and check_password_hash(usuario["senha_hash"], senha):
+            _limite_login.limpar(chave)
             session.permanent = True
             session["uid"] = usuario["id"]
-            destino = proximo if proximo.startswith("/") else url_for("index")
-            return redirect(destino)
+            return redirect(proximo)
 
+        _limite_login.registrar(chave)
         flash("Email ou senha inválidos.", "erro")
         return render_template("auth/login.html", email=email, proximo=proximo)
 
