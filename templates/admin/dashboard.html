@@ -3,66 +3,126 @@
 {% block heading %}Visão geral{% endblock %}
 
 {% block admin_content %}
+{% set primeiro = (perfil.nome.split(' ')[0]) if perfil and perfil.nome else 'Allan' %}
+
+<section class="admin-welcome">
+  <div class="admin-welcome-txt">
+    <span class="admin-welcome-date" data-hoje></span>
+    <h2>Olá, {{ primeiro }}</h2>
+    <p>Aqui está o resumo do seu site: conteúdo publicado, alunos cadastrados e o que aconteceu por aqui.</p>
+  </div>
+  <div class="admin-welcome-actions">
+    <a href="{{ url_for('admin_post_novo') }}" class="btn btn-primary"><svg class="ic"><use href="#a-pen"/></svg> Escrever postagem</a>
+    <a href="{{ url_for('index') }}" target="_blank" rel="noopener" class="btn btn-outline"><svg class="ic"><use href="#a-ext"/></svg> Ver site</a>
+  </div>
+</section>
+
 <div class="stat-grid">
-  <div class="stat-card">
+  <a class="stat-card" href="{{ url_for('admin_posts') }}" style="--c: var(--accent)">
+    <span class="stat-ico"><svg class="ic"><use href="#a-posts"/></svg></span>
     <span class="stat-value">{{ total_posts }}</span>
     <span class="stat-label">Postagens publicadas</span>
-  </div>
-  <div class="stat-card">
+    <span class="stat-go">Gerenciar <svg class="ic"><use href="#a-arrow"/></svg></span>
+  </a>
+  <div class="stat-card" style="--c: var(--info)">
+    <span class="stat-ico"><svg class="ic"><use href="#a-folder"/></svg></span>
     <span class="stat-value">{{ total_categorias }}</span>
     <span class="stat-label">Categorias em uso</span>
   </div>
-  <div class="stat-card">
+  <a class="stat-card" href="{{ url_for('admin_usuarios') }}" style="--c: var(--purple)">
+    <span class="stat-ico"><svg class="ic"><use href="#a-users"/></svg></span>
+    <span class="stat-value">{{ total_usuarios if total_usuarios is defined else '—' }}</span>
+    <span class="stat-label">Usuários cadastrados</span>
+    <span class="stat-go">Ver lista <svg class="ic"><use href="#a-arrow"/></svg></span>
+  </a>
+  <a class="stat-card" href="{{ url_for('admin_atividades') }}" style="--c: var(--warn)">
+    <span class="stat-ico"><svg class="ic"><use href="#a-activity"/></svg></span>
     <span class="stat-value">{{ atividades|length }}</span>
     <span class="stat-label">Atividades registradas</span>
-  </div>
+    <span class="stat-go">Ver histórico <svg class="ic"><use href="#a-arrow"/></svg></span>
+  </a>
 </div>
 
 <div class="admin-grid-2">
   <section class="admin-panel">
     <div class="admin-panel-head">
-      <h2>Postagens recentes</h2>
-      <a href="{{ url_for('admin_post_novo') }}" class="btn btn-primary btn-sm">+ Nova postagem</a>
+      <h2><svg class="ic"><use href="#a-posts"/></svg> Postagens recentes</h2>
+      <a href="{{ url_for('admin_posts') }}" class="link-sutil">ver todas</a>
     </div>
     {% if recentes %}
-    <table class="admin-table">
-      <thead><tr><th>Título</th><th>Categoria</th><th>Data</th><th></th></tr></thead>
-      <tbody>
-        {% for p in recentes %}
-        <tr>
-          <td><a href="{{ url_for('admin_post_editar', post_id=p.id) }}">{{ p.titulo }}</a></td>
-          <td><span class="tag-categoria cat-{{ p.categoria|lower }}">{{ p.categoria }}</span></td>
-          <td>{{ p.data_publicacao | data_br }}</td>
-          <td><a href="{{ url_for('post_detalhe', slug=p.slug) }}" target="_blank" class="link-sutil">ver ↗</a></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div class="admin-table-wrap">
+      <table class="admin-table admin-table-stack">
+        <thead><tr><th>Título</th><th>Categoria</th><th>Data</th><th class="col-acoes"><span class="sr-only">Ações</span></th></tr></thead>
+        <tbody>
+          {% for p in recentes %}
+          <tr>
+            <td data-label="Título"><a class="admin-table-title" href="{{ url_for('admin_post_editar', post_id=p.id) }}">{{ p.titulo }}</a></td>
+            <td data-label="Categoria"><span class="tag-categoria cat-{{ p.categoria|lower }}">{{ p.categoria }}</span></td>
+            <td data-label="Data" class="muted-cell">{{ p.data_publicacao | data_br }}</td>
+            <td class="col-acoes">
+              <a href="{{ url_for('post_detalhe', slug=p.slug) }}" target="_blank" rel="noopener" class="icon-act" title="Ver no site" aria-label="Ver “{{ p.titulo }}” no site"><svg class="ic"><use href="#a-eye"/></svg></a>
+              <a href="{{ url_for('admin_post_editar', post_id=p.id) }}" class="icon-act" title="Editar" aria-label="Editar “{{ p.titulo }}”"><svg class="ic"><use href="#a-edit"/></svg></a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
     {% else %}
-    <p class="admin-vazio">Nenhuma postagem ainda.</p>
+    <div class="admin-empty">
+      <span class="admin-empty-ico"><svg class="ic"><use href="#a-inbox"/></svg></span>
+      <strong>Nenhuma postagem ainda</strong>
+      <p>Escreva a primeira para ela aparecer aqui e no site.</p>
+      <a href="{{ url_for('admin_post_novo') }}" class="btn btn-primary btn-sm"><svg class="ic"><use href="#a-plus"/></svg> Nova postagem</a>
+    </div>
     {% endif %}
   </section>
 
   <section class="admin-panel">
     <div class="admin-panel-head">
-      <h2>Atividades</h2>
+      <h2><svg class="ic"><use href="#a-activity"/></svg> Atividade recente</h2>
       <a href="{{ url_for('admin_atividades') }}" class="link-sutil">ver todas</a>
     </div>
     {% if atividades %}
     <ul class="atividade-lista">
-      {% for a in atividades %}
-      <li>
-        <span class="atividade-ponto"></span>
+      {% for a in atividades[:6] %}
+      {% set d = a.descricao %}
+      {% set tipo = 'novo' if d.startswith('Publicou') else ('edit' if d.startswith('Editou') else ('del' if d.startswith('Excluiu') else 'perfil')) %}
+      <li class="at-{{ tipo }}">
+        <span class="atividade-ponto"><svg class="ic"><use href="#{{ {'novo': 'a-plus', 'edit': 'a-edit', 'del': 'a-trash', 'perfil': 'a-user'}[tipo] }}"/></svg></span>
         <div>
           <p>{{ a.descricao }}</p>
-          <span class="atividade-data">{{ a.criado_em }}</span>
+          <span class="atividade-data">{{ a.criado_em[:10] | data_br }} · {{ a.criado_em[11:16] }}</span>
         </div>
       </li>
       {% endfor %}
     </ul>
     {% else %}
-    <p class="admin-vazio">Nenhuma atividade disponível ainda.</p>
+    <div class="admin-empty admin-empty-sm">
+      <span class="admin-empty-ico"><svg class="ic"><use href="#a-activity"/></svg></span>
+      <strong>Nada por aqui ainda</strong>
+      <p>Publicar, editar e excluir postagens aparece neste histórico.</p>
+    </div>
     {% endif %}
   </section>
 </div>
+
+<section class="admin-quick" aria-label="Atalhos">
+  <a href="{{ url_for('admin_post_novo') }}" class="admin-quick-item">
+    <span class="admin-quick-ico" style="--c: var(--accent)"><svg class="ic"><use href="#a-pen"/></svg></span>
+    <span><strong>Nova postagem</strong><small>Escreva com prévia em markdown</small></span>
+  </a>
+  <a href="{{ url_for('admin_perfil') }}" class="admin-quick-item">
+    <span class="admin-quick-ico" style="--c: var(--info)"><svg class="ic"><use href="#a-user"/></svg></span>
+    <span><strong>Editar perfil</strong><small>Nome, bio e contato</small></span>
+  </a>
+  <a href="{{ url_for('admin_ia') }}" class="admin-quick-item">
+    <span class="admin-quick-ico" style="--c: var(--purple)"><svg class="ic"><use href="#a-ai"/></svg></span>
+    <span><strong>Atividades com IA</strong><small>Uso, temas e configuração</small></span>
+  </a>
+  <a href="{{ url_for('admin_usuarios') }}" class="admin-quick-item">
+    <span class="admin-quick-ico" style="--c: var(--warn)"><svg class="ic"><use href="#a-users"/></svg></span>
+    <span><strong>Usuários</strong><small>Quem está estudando</small></span>
+  </a>
+</section>
 {% endblock %}

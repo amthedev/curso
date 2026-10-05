@@ -1,52 +1,120 @@
 {% extends "admin/base_admin.html" %}
-{% block title %}{{ 'Editar postagem' if modo == 'editar' else 'Nova postagem' }} — Admin{% endblock %}
-{% block heading %}{{ 'Editar postagem' if modo == 'editar' else 'Nova postagem' }}{% endblock %}
+{% set editando = (modo == 'editar') %}
+{% block title %}{{ 'Editar postagem' if editando else 'Nova postagem' }} — Admin{% endblock %}
+{% block heading %}{{ 'Editar postagem' if editando else 'Nova postagem' }}{% endblock %}
+
+{% block topbar_actions %}{% endblock %}
 
 {% block admin_content %}
-<section class="admin-panel form-panel">
-  <form method="post" class="admin-form">
-    <div class="form-row">
-      <label for="titulo">Título</label>
-      <input type="text" id="titulo" name="titulo" required
-             value="{{ post.titulo if post else '' }}" placeholder="Ex: Como identificar phishing antes de clicar">
+{% set categorias = ['Pentest', 'Fundamentos', 'Redes', 'Linux', 'Python', 'Geral'] %}
+{% set atual = (post.categoria if post and post.categoria else 'Pentest') %}
+{% if atual not in categorias %}{% set categorias = categorias + [atual] %}{% endif %}
+{% set nivel_atual = (post.nivel if post and post.nivel else 'Intermediário') %}
+
+<form method="post" class="pf" id="postForm" data-modo="{{ modo }}">
+
+  <section class="admin-panel pf-panel">
+    <div class="pf-head">
+      <h2><svg class="ic"><use href="#a-file"/></svg> Informações</h2>
+      <span class="pf-hint">Campos com <b class="req">*</b> são obrigatórios</span>
     </div>
 
-    <div class="form-row form-row-split">
-      <div>
+    <div class="pf-field pf-field-title">
+      <label for="titulo">Título <b class="req">*</b></label>
+      <input type="text" id="titulo" name="titulo" required autocomplete="off"
+             value="{{ post.titulo if post else '' }}" placeholder="Ex: Como identificar phishing antes de clicar">
+      <span class="pf-count" data-for="titulo" data-max="70" aria-live="polite"></span>
+    </div>
+
+    <div class="pf-row pf-row-3">
+      <div class="pf-field">
         <label for="categoria">Categoria</label>
         <select id="categoria" name="categoria">
-          {% set atual = post.categoria if post else 'Usuários' %}
-          {% for c in ['Usuários', 'Redes', 'Linux', 'Python', 'Geral'] %}
-            <option value="{{ c }}" {{ 'selected' if atual == c else '' }}>{{ c }}</option>
+          {% for c in categorias %}
+          <option value="{{ c }}" {{ 'selected' if atual == c else '' }}>{{ c }}</option>
           {% endfor %}
         </select>
       </div>
-      <div>
+      <div class="pf-field">
+        <label for="nivel">Nível</label>
+        <select id="nivel" name="nivel">
+          {% for n in ['Iniciante', 'Intermediário', 'Avançado'] %}
+          <option value="{{ n }}" {{ 'selected' if nivel_atual == n else '' }}>{{ n }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="pf-field">
         <label for="data_publicacao">Data de publicação</label>
-        <input type="date" id="data_publicacao" name="data_publicacao"
-               value="{{ post.data_publicacao if post else '' }}">
+        <div class="pf-inline">
+          <input type="date" id="data_publicacao" name="data_publicacao" value="{{ post.data_publicacao if post else '' }}">
+          <button type="button" class="btn btn-outline btn-sm" id="btnHoje" title="Usar a data de hoje">Hoje</button>
+        </div>
       </div>
     </div>
 
-    <div class="form-row">
-      <label for="tags">Tags <span class="form-hint">separadas por vírgula</span></label>
-      <input type="text" id="tags" name="tags" value="{{ post.tags if post else '' }}" placeholder="senha, autenticação, básico">
+    <div class="pf-row pf-row-2">
+      <div class="pf-field">
+        <label for="tags">Tags <span class="form-hint">separadas por vírgula</span></label>
+        <input type="text" id="tags" name="tags" value="{{ post.tags if post else '' }}" placeholder="senha, autenticação, básico" autocomplete="off">
+        <div class="pf-tags" id="tagsPreview" aria-hidden="true"></div>
+      </div>
+      <div class="pf-field">
+        <label for="resumo">Resumo <span class="form-hint">aparece na listagem</span></label>
+        <textarea id="resumo" name="resumo" rows="3" placeholder="Uma ou duas frases sobre o post">{{ post.resumo if post else '' }}</textarea>
+        <span class="pf-count" data-for="resumo" data-max="160" aria-live="polite"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="admin-panel pf-panel pf-editor">
+    <div class="pf-head">
+      <h2><svg class="ic"><use href="#a-pen"/></svg> Conteúdo <b class="req">*</b></h2>
+      <div class="pf-stats" aria-live="polite">
+        <span><b id="stWords">0</b> palavras</span>
+        <span><b id="stChars">0</b> caracteres</span>
+        <span>~<b id="stMin">1</b> min de leitura</span>
+      </div>
+      <div class="pf-seg" role="group" aria-label="Modo do editor">
+        <button type="button" data-mode="write" class="is-on" aria-pressed="true"><svg class="ic"><use href="#a-edit"/></svg> Escrever</button>
+        <button type="button" data-mode="split" class="pf-seg-split" aria-pressed="false"><svg class="ic"><use href="#a-cols"/></svg> Dividido</button>
+        <button type="button" data-mode="preview" aria-pressed="false"><svg class="ic"><use href="#a-eye"/></svg> Prévia</button>
+      </div>
     </div>
 
-    <div class="form-row">
-      <label for="resumo">Resumo <span class="form-hint">aparece na listagem</span></label>
-      <textarea id="resumo" name="resumo" rows="2" placeholder="Uma ou duas frases sobre o post">{{ post.resumo if post else '' }}</textarea>
+    <div class="pf-toolbar" role="toolbar" aria-label="Formatação markdown">
+      <button type="button" data-md="bold" title="Negrito (Ctrl+B)" aria-label="Negrito"><svg class="ic"><use href="#a-bold"/></svg></button>
+      <button type="button" data-md="italic" title="Itálico (Ctrl+I)" aria-label="Itálico"><svg class="ic"><use href="#a-italic"/></svg></button>
+      <button type="button" data-md="h2" title="Título de seção" aria-label="Título"><svg class="ic"><use href="#a-heading"/></svg></button>
+      <span class="pf-sep"></span>
+      <button type="button" data-md="ul" title="Lista" aria-label="Lista"><svg class="ic"><use href="#a-list"/></svg></button>
+      <button type="button" data-md="quote" title="Citação" aria-label="Citação"><svg class="ic"><use href="#a-quote"/></svg></button>
+      <span class="pf-sep"></span>
+      <button type="button" data-md="code" title="Código inline" aria-label="Código inline"><svg class="ic"><use href="#a-code"/></svg></button>
+      <button type="button" data-md="block" title="Bloco de código" aria-label="Bloco de código"><svg class="ic"><use href="#a-terminal"/></svg></button>
+      <button type="button" data-md="link" title="Link" aria-label="Link"><svg class="ic"><use href="#a-link"/></svg></button>
+      <span class="pf-toolbar-note">Markdown simples: <code>## título</code> <code>**negrito**</code> <code>- lista</code> <code>```bloco```</code></span>
     </div>
 
-    <div class="form-row">
-      <label for="corpo">Conteúdo <span class="form-hint">suporta markdown simples: ## título, **negrito**, listas, blocos de código com ```</span></label>
-      <textarea id="corpo" name="corpo" rows="20" required placeholder="Escreva o post aqui...">{{ post.corpo if post else '' }}</textarea>
+    <div class="pf-split" id="pfSplit" data-mode="write">
+      <div class="pf-pane pf-pane-write">
+        <label for="corpo" class="sr-only">Conteúdo da postagem</label>
+        <textarea id="corpo" name="corpo" rows="20" required placeholder="Escreva o post aqui...">{{ post.corpo if post else '' }}</textarea>
+      </div>
+      <div class="pf-pane pf-pane-preview">
+        <div class="pf-pane-label"><svg class="ic"><use href="#a-eye"/></svg> Prévia</div>
+        <div class="post-body pf-preview" id="preview" aria-live="off"></div>
+      </div>
     </div>
+  </section>
 
-    <div class="form-actions">
-      <a href="{{ url_for('admin_posts') }}" class="btn btn-outline">Cancelar</a>
-      <button type="submit" class="btn btn-primary">{{ 'Salvar alterações' if modo == 'editar' else 'Publicar postagem' }}</button>
-    </div>
-  </form>
-</section>
+  <div class="pf-actionbar">
+    <span class="pf-dirty" id="pfDirty" hidden><i></i> Alterações não salvas</span>
+    <span class="pf-actionbar-spacer"></span>
+    <a href="{{ url_for('admin_posts') }}" class="btn btn-outline">Cancelar</a>
+    <button type="submit" class="btn btn-primary">
+      <svg class="ic"><use href="#{{ 'a-save' if editando else 'a-zap' }}"/></svg>
+      {{ 'Salvar alterações' if editando else 'Publicar postagem' }}
+    </button>
+  </div>
+</form>
 {% endblock %}

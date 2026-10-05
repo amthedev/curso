@@ -1,36 +1,83 @@
 {% extends "base.html" %}
+{% from "_ui.html" import ico, cat_ico, post_card %}
 {% block title %}{{ perfil.nome }} — Perfil{% endblock %}
+{% block meta_desc %}{{ perfil.titulo }} — {{ perfil.bio }}{% endblock %}
 
 {% block content %}
-<div class="wrap perfil-page">
-  <div class="perfil-header">
-    <span class="avatar avatar-xl">{{ perfil.avatar }}</span>
-    <h1>{{ perfil.nome }}</h1>
-    <p class="perfil-titulo">{{ perfil.titulo }}</p>
-    <p class="perfil-bio">{{ perfil.bio }}</p>
-    <div class="perfil-info">
-      {% if perfil.email %}<span>✉ {{ perfil.email }}</span>{% endif %}
-      {% if perfil.local %}<span>📍 {{ perfil.local }}</span>{% endif %}
-      <span>📝 {{ total_posts }} publicações</span>
-    </div>
-  </div>
+{% set temas = ultimos | map(attribute='categoria') | unique | list %}
+<div class="perfil-page">
 
-  {% if ultimos %}
-  <section class="perfil-posts">
-    <h3>Últimas publicações</h3>
-    <div class="post-grid">
-      {% for post in ultimos %}
-      <a href="{{ url_for('post_detalhe', slug=post.slug) }}" class="post-card">
-        <span class="tag-categoria cat-{{ post.categoria|lower }}">{{ post.categoria }}</span>
-        <h3>{{ post.titulo }}</h3>
-        <p>{{ post.resumo }}</p>
-        <div class="post-meta">
-          <span>{{ post.data_publicacao | data_br }}</span>
-        </div>
-      </a>
-      {% endfor %}
+  <!-- Capa + identidade -->
+  <header class="perfil-hero">
+    <div class="perfil-cover" aria-hidden="true">
+      <span class="hero-orb o1"></span>
+      <span class="hero-orb o2"></span>
     </div>
-  </section>
-  {% endif %}
+    <div class="wrap perfil-hero-inner">
+      <span class="avatar avatar-xl avatar-ring">{{ perfil.avatar }}</span>
+      <div class="perfil-id">
+        <span class="page-hero-eyebrow">Sobre o autor</span>
+        <h1>{{ perfil.nome }}</h1>
+        <p class="perfil-titulo">{{ perfil.titulo }}</p>
+        <p class="perfil-bio">{{ perfil.bio }}</p>
+        <ul class="perfil-info">
+          {% if perfil.email %}<li>{{ ico('mail') }}<span>{{ perfil.email }}</span></li>{% endif %}
+          {% if perfil.local %}<li>{{ ico('pin') }}<span>{{ perfil.local }}</span></li>{% endif %}
+          <li>{{ ico('file') }}<span>{{ total_posts }} publicações</span></li>
+        </ul>
+        <div class="perfil-cta">
+          <a href="{{ url_for('index') }}" class="btn btn-primary">{{ ico('book') }} Ler os posts</a>
+          <a href="{{ url_for('atividades_index') }}" class="btn btn-outline">{{ ico('target') }} Fazer atividades</a>
+          <a href="{{ url_for('ia.index') }}" class="btn btn-ai">{{ ico('sparkles') }} Gerar com IA</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap perfil-body">
+
+    <!-- Como o site funciona -->
+    <section class="perfil-how" aria-labelledby="howTitulo">
+      <div class="section-head"><h2 id="howTitulo">Como aprender aqui</h2></div>
+      <div class="grid-3">
+        <div class="card card-hover how-card">
+          <span class="how-ico">{{ ico('book') }}</span>
+          <h3>1. Leia</h3>
+          <p class="muted">Guias técnicos diretos ao ponto, com comandos reais e explicações linha a linha.</p>
+        </div>
+        <div class="card card-hover how-card">
+          <span class="how-ico">{{ ico('terminal') }}</span>
+          <h3>2. Pratique</h3>
+          <p class="muted">Atividades com terminal simulado: erre, teste e ganhe XP sem arriscar nenhum sistema.</p>
+        </div>
+        <div class="card card-hover how-card">
+          <span class="how-ico">{{ ico('sparkles') }}</span>
+          <h3>3. Gere com IA</h3>
+          <p class="muted">Peça uma atividade sob medida sobre qualquer tema e treine no seu ritmo.</p>
+        </div>
+      </div>
+    </section>
+
+    {% if temas %}
+    <section class="perfil-temas" aria-label="Temas">
+      <span class="muted">Temas recentes:</span>
+      {% for t in temas %}
+        <a class="tag-categoria cat-{{ t|lower|replace(' ', '') }}" href="{{ url_for('index', categoria=t) }}">{{ t }}</a>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if ultimos %}
+    <section class="perfil-posts">
+      <div class="section-head">
+        <h2>Últimas publicações</h2>
+        <a href="{{ url_for('index') }}" class="link-more">Ver todas {{ ico('arrow-right') }}</a>
+      </div>
+      <div class="post-grid post-grid-3">
+        {% for post in ultimos %}{{ post_card(post, loop.index0 % 6) }}{% endfor %}
+      </div>
+    </section>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}

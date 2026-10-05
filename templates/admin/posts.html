@@ -3,37 +3,72 @@
 {% block heading %}Postagens{% endblock %}
 
 {% block admin_content %}
-<section class="admin-panel">
-  <div class="admin-panel-head">
-    <h2>Todas as postagens ({{ posts|length }})</h2>
-    <a href="{{ url_for('admin_post_novo') }}" class="btn btn-primary btn-sm">+ Nova postagem</a>
+{% set cats = [] %}
+{% for p in posts %}{% if p.categoria not in cats %}{% set _ = cats.append(p.categoria) %}{% endif %}{% endfor %}
+
+<section class="admin-panel admin-panel-flush">
+  <div class="admin-toolbar">
+    <div class="admin-search">
+      <svg class="ic"><use href="#a-search"/></svg>
+      <input type="search" id="filtroPosts" data-filter-input placeholder="Buscar por título, resumo ou tag…" aria-label="Buscar postagens" autocomplete="off">
+    </div>
+    <div class="admin-toolbar-end">
+      <span class="admin-count"><strong data-count>{{ posts|length }}</strong> de {{ posts|length }} postagens</span>
+      <a href="{{ url_for('admin_post_novo') }}" class="btn btn-primary btn-sm admin-new-inline"><svg class="ic"><use href="#a-plus"/></svg> Nova postagem</a>
+    </div>
   </div>
 
+  {% if cats|length > 1 %}
+  <div class="admin-chips" role="group" aria-label="Filtrar por categoria">
+    <button type="button" class="admin-chip is-on" data-filter-chip="">Todas</button>
+    {% for c in cats|sort %}
+    <button type="button" class="admin-chip" data-filter-chip="{{ c|lower }}">{{ c }}</button>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   {% if posts %}
-  <table class="admin-table">
-    <thead><tr><th>Título</th><th>Categoria</th><th>Data</th><th>Ações</th></tr></thead>
-    <tbody>
-      {% for p in posts %}
-      <tr>
-        <td>
-          <a href="{{ url_for('admin_post_editar', post_id=p.id) }}">{{ p.titulo }}</a>
-          <div class="admin-table-sub">{{ p.resumo[:80] }}{{ '…' if p.resumo|length > 80 else '' }}</div>
-        </td>
-        <td><span class="tag-categoria cat-{{ p.categoria|lower }}">{{ p.categoria }}</span></td>
-        <td>{{ p.data_publicacao | data_br }}</td>
-        <td class="admin-table-acoes">
-          <a href="{{ url_for('post_detalhe', slug=p.slug) }}" target="_blank" class="link-sutil">ver</a>
-          <a href="{{ url_for('admin_post_editar', post_id=p.id) }}" class="link-sutil">editar</a>
-          <form method="post" action="{{ url_for('admin_post_excluir', post_id=p.id) }}" class="inline-form" data-confirm="Excluir a postagem “{{ p.titulo }}”? Essa ação não pode ser desfeita.">
-            <button type="submit" class="link-sutil link-danger">excluir</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="admin-table-wrap">
+    <table class="admin-table admin-table-stack">
+      <thead>
+        <tr><th>Título</th><th>Categoria</th><th>Nível</th><th>Publicado</th><th class="col-acoes">Ações</th></tr>
+      </thead>
+      <tbody>
+        {% for p in posts %}
+        <tr data-row data-q="{{ (p.titulo ~ ' ' ~ p.resumo ~ ' ' ~ p.tags)|lower }}" data-cat="{{ p.categoria|lower }}">
+          <td data-label="Título">
+            <a class="admin-table-title" href="{{ url_for('admin_post_editar', post_id=p.id) }}">{{ p.titulo }}</a>
+            {% if p.resumo %}<div class="admin-table-sub">{{ p.resumo[:90] }}{{ '…' if p.resumo|length > 90 else '' }}</div>{% endif %}
+          </td>
+          <td data-label="Categoria"><span class="tag-categoria cat-{{ p.categoria|lower }}">{{ p.categoria }}</span></td>
+          <td data-label="Nível"><span class="admin-lvl admin-lvl-{{ (p.nivel or 'Intermediário')|lower }}">{{ p.nivel or '—' }}</span></td>
+          <td data-label="Publicado" class="muted-cell">{{ p.data_publicacao | data_br }}</td>
+          <td class="col-acoes admin-table-acoes">
+            <a href="{{ url_for('post_detalhe', slug=p.slug) }}" target="_blank" rel="noopener" class="icon-act" title="Ver no site" aria-label="Ver “{{ p.titulo }}” no site"><svg class="ic"><use href="#a-eye"/></svg></a>
+            <a href="{{ url_for('admin_post_editar', post_id=p.id) }}" class="icon-act" title="Editar" aria-label="Editar “{{ p.titulo }}”"><svg class="ic"><use href="#a-edit"/></svg></a>
+            <form method="post" action="{{ url_for('admin_post_excluir', post_id=p.id) }}" class="inline-form" data-confirm="Excluir a postagem “{{ p.titulo }}”? Essa ação não pode ser desfeita.">
+              <button type="submit" class="icon-act icon-act-danger" title="Excluir" aria-label="Excluir “{{ p.titulo }}”"><svg class="ic"><use href="#a-trash"/></svg></button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="admin-empty" data-empty hidden>
+    <span class="admin-empty-ico"><svg class="ic"><use href="#a-search"/></svg></span>
+    <strong>Nenhuma postagem encontrada</strong>
+    <p>Tente outro termo de busca ou limpe o filtro de categoria.</p>
+    <button type="button" class="btn btn-outline btn-sm" data-filter-reset>Limpar filtros</button>
+  </div>
   {% else %}
-  <p class="admin-vazio">Nenhuma postagem ainda. <a href="{{ url_for('admin_post_novo') }}">Crie a primeira</a>.</p>
+  <div class="admin-empty">
+    <span class="admin-empty-ico"><svg class="ic"><use href="#a-inbox"/></svg></span>
+    <strong>Nenhuma postagem ainda</strong>
+    <p>Quando você publicar, elas aparecem aqui para editar ou excluir.</p>
+    <a href="{{ url_for('admin_post_novo') }}" class="btn btn-primary btn-sm"><svg class="ic"><use href="#a-plus"/></svg> Criar a primeira</a>
+  </div>
   {% endif %}
 </section>
 {% endblock %}

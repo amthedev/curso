@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% from "aluno/_icones.html" import ico, ico_fonte %}
+{% block title %}Meu painel — Allan Dev{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/aluno.css') }}">
+{% endblock %}
+
+{% block content %}
+{% set hm = st.heatmap %}
+<main class="wrap al-page">
+
+  {# ───────── Hero: avatar, nível e barra de XP ───────── #}
+  <header class="al-hero al-lv-{{ nivel.indice }}">
+    <div class="al-avatar-ring" style="--pct: {{ nivel.pct }}">
+      <svg class="al-ring" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+        <circle class="al-ring-bg" cx="60" cy="60" r="54"/>
+        <circle class="al-ring-fg" cx="60" cy="60" r="54" pathLength="100"/>
+      </svg>
+      <span class="al-avatar" aria-hidden="true">{{ inicial }}</span>
+      <span class="al-avatar-nivel" title="Nível {{ nivel.numero }} de {{ nivel.total_niveis }}">{{ nivel.numero }}</span>
+    </div>
+
+    <div class="al-hero-info">
+      <span class="al-eyebrow">// painel do aluno</span>
+      <h1>{{ nome }}</h1>
+      <div class="al-nivel-linha">
+        <span class="al-nivel-badge">{{ nivel.nome }}</span>
+        <span class="al-muted">Nível {{ nivel.numero }} de {{ nivel.total_niveis }}</span>
+      </div>
+      <div class="al-xpbar" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+           aria-valuenow="{{ nivel.pct|round|int }}"
+           aria-label="{% if nivel.maximo %}Nível máximo alcançado{% else %}Progresso até o nível {{ nivel.proximo }}{% endif %}">
+        <div class="al-xpbar-fill" style="--w: {{ nivel.pct }}%"></div>
+      </div>
+      <p class="al-xp-legenda">
+        {% if nivel.maximo %}
+          <strong>{{ st.xp_total|milhar }} XP</strong> · você chegou ao topo. Respeito, <span class="al-prox">{{ nivel.nome }}</span>.
+        {% else %}
+          <strong>{{ st.xp_total|milhar }}</strong> / {{ nivel.proximo_xp|milhar }} XP · faltam
+          <strong>{{ nivel.xp_faltam|milhar }} XP</strong> para <span class="al-prox">{{ nivel.proximo }}</span>
+        {% endif %}
+      </p>
+    </div>
+
+    <div class="al-hero-actions">
+      <a class="btn btn-primary" href="{{ url_for('atividades_index') }}">{{ ico('terminal') }} Continuar treinando</a>
+      <a class="btn btn-outline" href="{{ url_for('aluno.ranking') }}">{{ ico('podium') }} Ver ranking</a>
+    </div>
+
+    <ol class="al-niveis" aria-label="Trilha de níveis">
+      {% for n_nome, n_xp in niveis %}
+      <li class="{{ 'is-done' if loop.index0 < nivel.indice else ('is-atual' if loop.index0 == nivel.indice else '') }}"
+          {% if loop.index0 == nivel.indice %}aria-current="step"{% endif %}>
+        <span class="al-nv-dot"></span>
+        <span class="al-nv-nome">{{ n_nome }}</span>
+        <span class="al-nv-xp">{{ n_xp|milhar }} XP</span>
+      </li>
+      {% endfor %}
+    </ol>
+  </header>
+
+  {# ───────── Cards de estatística ───────── #}
+  <section class="al-stats" aria-label="Resumo">
+    <article class="al-stat al-stat-xp">
+      <div class="al-stat-top"><span class="al-stat-ico">{{ ico('bolt') }}</span><span class="al-stat-label">XP total</span></div>
+      <div class="al-stat-valor">{{ st.xp_total|milhar }}</div>
+      <div class="al-stat-sub">
+        {% if st.xp_hoje %}<b>+{{ st.xp_hoje|milhar }} XP</b> hoje{% else %}Nenhum XP hoje ainda{% endif %}
+      </div>
+    </article>
+
+    <article class="al-stat al-stat-streak {{ 'is-on' if st.streak_atual else '' }}">
+      <div class="al-stat-top"><span class="al-stat-ico">{{ ico('flame') }}</span><span class="al-stat-label">Streak atual</span></div>
+      <div class="al-stat-valor">{{ st.streak_atual }}<small>{{ 'dia' if st.streak_atual == 1 else 'dias' }}</small></div>
+      <div class="al-stat-sub">
+        {% if st.streak_atual and st.streak_ativo_hoje %}<b>Hoje já contou.</b> Volte amanhã!
+        {% elif st.streak_atual %}Pontue <b>hoje</b> para manter a sequência.
+        {% else %}Pontue hoje para começar uma sequência.{% endif %}
+      </div>
+    </article>
+
+    <article class="al-stat al-stat-recorde">
+      <div class="al-stat-top"><span class="al-stat-ico">{{ ico('trophy') }}</span><span class="al-stat-label">Recorde</span></div>
+      <div class="al-stat-valor">{{ st.streak_recorde }}<small>{{ 'dia' if st.streak_recorde == 1 else 'dias' }}</small></div>
+      <div class="al-stat-sub">Sua melhor sequência de dias seguidos.</div>
+    </article>
+
+    <article class="al-stat al-stat-conq">
+      <div class="al-stat-top"><span class="al-stat-ico">{{ ico('medal') }}</span><span class="al-stat-label">Conquistas</span></div>
+      <div class="al-stat-valor">{{ n_desbloqueadas }}<small>/ {{ conquistas|length }}</small></div>
+      <div class="al-mini" aria-hidden="true"><i style="--w: {{ (n_desbloqueadas / conquistas|length * 100)|round|int if conquistas else 0 }}%"></i></div>
+    </article>
+
+    <article class="al-stat al-stat-rank">
+      <div class="al-stat-top"><span class="al-stat-ico">{{ ico('podium') }}</span><span class="al-stat-label">Ranking</span></div>
+      {% if not ranking_publico %}
+        <div class="al-stat-valor">Oculto</div>
+        <div class="al-stat-sub"><a href="#privacidade"><b>Ative</b></a> para aparecer no ranking.</div>
+      {% elif pos_geral %}
+        <div class="al-stat-valor">#{{ pos_geral.posicao }}</div>
+        <div class="al-stat-sub">
+          no geral{% if pos_semana %} · <b>#{{ pos_semana.posicao }}</b> na semana{% endif %}
+          <br><a href="{{ url_for('aluno.ranking', periodo='geral') }}"><b>Ver ranking</b></a>
+        </div>
+      {% else %}
+        <div class="al-stat-valor">—</div>
+        <div class="al-stat-sub">Ganhe XP para entrar no <a href="{{ url_for('aluno.ranking') }}"><b>ranking</b></a>.</div>
+      {% endif %}
+    </article>
+  </section>
+
+  {# ───────── Heatmap + últimos eventos ───────── #}
+  <div class="al-duo">
+    <section class="al-card" aria-labelledby="hm-titulo">
+      <div class="al-card-head">
+        <h2 id="hm-titulo">{{ ico('calendar') }} Atividade</h2>
+        <small>{{ hm.dias_ativos }} {{ 'dia ativo' if hm.dias_ativos == 1 else 'dias ativos' }} · {{ hm.xp_total|milhar }} XP · 12 semanas</small>
+      </div>
+
+      <div class="al-hm" role="img"
+           aria-label="Atividade nas últimas 12 semanas: {{ hm.dias_ativos }} dias com XP, {{ hm.xp_total }} XP no total">
+        <div class="al-hm-meses" aria-hidden="true">
+          {% for m in hm.meses %}<span>{{ m }}</span>{% endfor %}
+        </div>
+        <div class="al-hm-dias" aria-hidden="true">
+          <span>Seg</span><span></span><span>Qua</span><span></span><span>Sex</span><span></span><span></span>
+        </div>
+        <div class="al-hm-semanas" data-hm-info="alHmInfo">
+          {% for semana in hm.semanas %}{% set w = loop.index0 %}
+          <div class="al-hm-semana">
+            {% for c in semana %}
+            <div class="al-hm-cell{{ ' is-hoje' if c.hoje }}{{ ' is-futuro' if c.futuro }}" data-n="{{ c.nivel }}"
+                 {% if not c.futuro %}title="{{ c.titulo }}"{% endif %} style="--i: {{ w * 7 + loop.index0 }}"></div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <p class="al-hm-info" id="alHmInfo" aria-live="polite"></p>
+      <div class="al-hm-rodape">
+        <span>{% if st.streak_atual %}Sequência de <b>{{ st.streak_atual }}</b> {{ 'dia' if st.streak_atual == 1 else 'dias' }}.{% else %}Toque num dia para ver o XP.{% endif %}</span>
+        <span class="al-hm-legenda" aria-hidden="true">menos
+          <span class="al-hm-cell" data-n="0"></span><span class="al-hm-cell" data-n="1"></span><span class="al-hm-cell" data-n="2"></span><span class="al-hm-cell" data-n="3"></span><span class="al-hm-cell" data-n="4"></span>
+          mais</span>
+      </div>
+
+      {% set xp_ia = st.xp_por_fonte.ia_atividade + st.xp_por_fonte.ia_questao %}
+      <div class="al-origem">
+        <h3>De onde vem seu XP</h3>
+        <ul>
+          {% for classe, rotulo, icone, valor in [
+              ('o-missao', 'Missões no terminal', 'terminal', st.xp_por_fonte.missao),
+              ('o-licao_concluida', 'Trilhas concluídas', 'route', st.xp_por_fonte.licao_concluida),
+              ('o-ia', 'Atividades com IA', 'cpu', xp_ia)] %}
+          <li class="{{ classe }}">
+            <span class="al-origem-nome">{{ ico(icone) }} {{ rotulo }}</span>
+            <span class="al-origem-xp">{{ valor|milhar }} <small>XP</small></span>
+            <div class="al-mini" aria-hidden="true"><i style="--w: {{ (valor / st.xp_total * 100)|round|int if st.xp_total else 0 }}%"></i></div>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </section>
+
+    <section class="al-card" aria-labelledby="ev-titulo">
+      <div class="al-card-head">
+        <h2 id="ev-titulo">{{ ico('bolt') }} Últimos ganhos de XP</h2>
+      </div>
+      {% if st.eventos_recentes %}
+      <ul class="al-eventos">
+        {% for e in st.eventos_recentes %}
+        <li class="al-evento">
+          <span class="al-evento-ico f-{{ e.fonte }}" title="{{ e.fonte_nome }}">{{ ico_fonte(e.fonte) }}</span>
+          <div class="al-evento-txt">
+            <b title="{{ e.titulo }}">{{ e.titulo }}</b>
+            <span title="{{ e.detalhe }}">{{ e.detalhe or e.fonte_nome }}</span>
+          </div>
+          <div class="al-evento-xp">
+            <b>+{{ e.xp }} XP</b>
+            <span title="{{ e.quando_dia }} às {{ e.quando_hora }}">{{ e.quando_rel }}</span>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="al-vazio">
+        {{ ico('terminal') }}
+        <p>Nenhum XP por aqui ainda. Complete sua primeira missão no terminal para começar.</p>
+        <a class="btn btn-primary btn-sm" href="{{ url_for('atividades_index') }}">Ir para as atividades</a>
+      </div>
+      {% endif %}
+    </section>
+  </div>
+
+  {# ───────── Conquistas ───────── #}
+  <section class="al-card" aria-labelledby="conq-titulo">
+    <div class="al-card-head">
+      <h2 id="conq-titulo">{{ ico('medal') }} Conquistas</h2>
+      <small>{{ n_desbloqueadas }} de {{ conquistas|length }} desbloqueadas</small>
+    </div>
+    <ul class="al-conquistas">
+      {% for c in conquistas %}
+      <li class="al-conq tier-{{ c.tier }} {{ 'is-on' if c.desbloqueada else 'is-off' }}">
+        <span class="al-conq-medalha">
+          {{ c.icone|safe }}
+          {% if not c.desbloqueada %}<span class="al-conq-cadeado">{{ ico('lock') }}</span>{% endif %}
+        </span>
+        <div>
+          <h3>{{ c.nome }}{% if c.nova %} <span class="al-conq-nova">NOVA</span>{% endif %}</h3>
+          <p>{{ c.desc }}</p>
+          {% if c.desbloqueada %}
+            <div class="al-conq-rodape">Desbloqueada{% if c.quando %} em {{ c.quando }}{% endif %}</div>
+          {% elif c.meta > 1 %}
+            <div class="al-mini" aria-hidden="true"><i style="--w: {{ c.pct }}%"></i></div>
+            <div class="al-conq-rodape"><span class="al-sr">Bloqueada: </span>{{ c.progresso|milhar }} / {{ c.meta|milhar }}</div>
+          {% else %}
+            <div class="al-conq-rodape">Bloqueada</div>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  {# ───────── Privacidade ───────── #}
+  <section class="al-card al-priv" id="privacidade" aria-labelledby="priv-titulo">
+    <div class="al-priv-txt">
+      {{ ico('shield') }}
+      <div>
+        <h2 id="priv-titulo">Aparecer no ranking</h2>
+        <p>
+          {% if ranking_publico %}
+            Seu nome aparece abreviado (ex.: <b>{{ nome_ranking }}</b>) e seu XP fica visível para outros alunos. Seu email nunca é exibido.
+          {% else %}
+            Você está oculto: não aparece no ranking e ninguém vê seu XP. Seu progresso continua sendo salvo normalmente.
+          {% endif %}
+        </p>
+      </div>
+    </div>
+    <form class="al-switch-form" method="post" action="{{ url_for('aluno.ranking_publico') }}">
+      <input type="hidden" name="publico" value="{{ '0' if ranking_publico else '1' }}">
+      <button type="submit" class="al-switch" role="switch" aria-checked="{{ 'true' if ranking_publico else 'false' }}">
+        <span class="al-switch-trilho" aria-hidden="true"></span>
+        {{ 'Visível no ranking' if ranking_publico else 'Oculto do ranking' }}
+      </button>
+    </form>
+  </section>
+
+</main>
+
+{% if novas %}
+<script type="application/json" data-gami-conquistas>{{ novas|tojson }}</script>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/gamificacao.js') }}"></script>
+{% endblock %}

@@ -3,26 +3,50 @@
 {% block heading %}Usuários{% endblock %}
 
 {% block admin_content %}
-<section class="admin-panel">
-  <div class="admin-panel-head">
-    <h2>Todos os usuários ({{ usuarios|length }})</h2>
+<section class="admin-panel admin-panel-flush">
+  <div class="admin-toolbar">
+    <div class="admin-search">
+      <svg class="ic"><use href="#a-search"/></svg>
+      <input type="search" data-filter-input placeholder="Buscar por nome ou email…" aria-label="Buscar usuários" autocomplete="off">
+    </div>
+    <div class="admin-toolbar-end">
+      <span class="admin-count"><strong data-count>{{ usuarios|length }}</strong> de {{ usuarios|length }} usuários</span>
+    </div>
   </div>
 
   {% if usuarios %}
-  <table class="admin-table">
-    <thead><tr><th>Nome</th><th>Email</th><th>Cadastrado</th></tr></thead>
-    <tbody>
-      {% for u in usuarios %}
-      <tr>
-        <td>{{ u.nome }}</td>
-        <td>{{ u.email }}</td>
-        <td>{{ u.criado_em }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="admin-table-wrap">
+    <table class="admin-table admin-table-stack">
+      <thead><tr><th>Nome</th><th>Email</th><th>Cadastrado em</th></tr></thead>
+      <tbody>
+        {% for u in usuarios %}
+        <tr data-row data-q="{{ (u.nome ~ ' ' ~ u.email)|lower }}">
+          <td data-label="Nome">
+            <span class="user-cell">
+              <span class="avatar avatar-sm">{{ ((u.nome.split()[0][0] ~ (u.nome.split()[-1][0] if u.nome.split()|length > 1 else ''))|upper) if u.nome.split() else '?' }}</span>
+              <span class="admin-table-title">{{ u.nome }}</span>
+            </span>
+          </td>
+          <td data-label="Email" class="muted-cell"><a href="mailto:{{ u.email }}" class="mail-link">{{ u.email }}</a></td>
+          <td data-label="Cadastrado em" class="muted-cell">{{ u.criado_em[:10] | data_br }} <span class="muted-time">{{ u.criado_em[11:16] }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="admin-empty" data-empty hidden>
+    <span class="admin-empty-ico"><svg class="ic"><use href="#a-search"/></svg></span>
+    <strong>Nenhum usuário encontrado</strong>
+    <p>Confira a grafia do nome ou do email.</p>
+    <button type="button" class="btn btn-outline btn-sm" data-filter-reset>Limpar busca</button>
+  </div>
   {% else %}
-  <p class="admin-vazio">Nenhum usuário cadastrado ainda.</p>
+  <div class="admin-empty">
+    <span class="admin-empty-ico"><svg class="ic"><use href="#a-users"/></svg></span>
+    <strong>Nenhum usuário cadastrado ainda</strong>
+    <p>Quando alguém criar uma conta para acessar as Atividades, aparece aqui.</p>
+  </div>
   {% endif %}
 </section>
 {% endblock %}

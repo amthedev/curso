@@ -120,13 +120,11 @@
       </section>
       {% endif %}
 
-      <section class="lc-card lc-card-ia">
-        <h5><svg class="ico" aria-hidden="true"><use href="#i-sparkles"/></svg> Quer mais prática?</h5>
-        <p>A IA cria uma atividade sobre este tema, na hora.</p>
-        <a class="btn btn-primary btn-sm btn-block" href="{{ url_for('ia.index', tema=tema_ia) }}">
-          Praticar mais com IA <svg class="ico" aria-hidden="true"><use href="#i-arrow-right"/></svg>
-        </a>
-      </section>
+      <a class="lc-ia-link" href="{{ url_for('ia.index', tema=tema_ia) }}">
+        <span class="lc-ia-ico"><svg class="ico" aria-hidden="true"><use href="#i-sparkles"/></svg></span>
+        <span class="lc-ia-txt"><strong>Praticar mais com IA</strong><small>Atividade sobre este tema</small></span>
+        <svg class="ico lc-ia-go" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+      </a>
     </aside>
   </div>
 
@@ -305,6 +303,19 @@
     });
   }
 
+  /* ── Aside rolável: sinaliza (fade) quando há mais conteúdo abaixo ── */
+  var aside = document.querySelector(".lc-aside");
+  if (aside) {
+    var fade = function () {
+      var mais = aside.scrollHeight - aside.clientHeight - aside.scrollTop > 6;
+      aside.classList.toggle("rola", mais);
+    };
+    aside.addEventListener("scroll", fade, { passive: true });
+    window.addEventListener("resize", fade);
+    setTimeout(fade, 250);
+    setTimeout(fade, 900);
+  }
+
   /* ── Progresso de leitura (só informativo; o botão continua livre) ── */
   var pctEl = $("lcReadPct");
   var gateRead = $("gateRead");
@@ -334,6 +345,7 @@
     var itens = Array.prototype.slice.call(lista.querySelectorAll(".missao"));
     var total = itens.length;
     var vistas = {};
+    var iniciado = false;
     itens.forEach(function (el) { if (el.classList.contains("missao-feita")) vistas[el.id] = true; });
 
     var set = function (id, txt) { var e = $(id); if (e) e.textContent = txt; };
@@ -362,6 +374,12 @@
       });
       itens.forEach(function (el) { el.classList.toggle("missao-atual", el === proxima); });
       if (novoXp) toast(novoXp);
+      if (proxima && lista.scrollHeight > lista.clientHeight + 4) {
+        var topo = Math.max(proxima.offsetTop - 12, 0);
+        if (lista.scrollTo) lista.scrollTo({ top: topo, behavior: iniciado ? "smooth" : "auto" });
+        else lista.scrollTop = topo;
+      }
+      iniciado = true;
 
       set("xpGanho", xp);
       set("heroXp", xp);

@@ -1,70 +1,138 @@
-<!DOCTYPE html>
+{% from "_ui.html" import ico, sprite %}<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Criar conta — Allan Dev</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+<meta name="theme-color" content="#07090d">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%2339d98a'/><stop offset='1' stop-color='%2358a6ff'/></linearGradient></defs><rect width='64' height='64' rx='16' fill='url(%23g)'/><path d='m20 22 11 10-11 10' fill='none' stroke='%2304120a' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/><path d='M35 44h11' stroke='%2304120a' stroke-width='6' stroke-linecap='round'/></svg>">
+<script>document.documentElement.classList.add('js');</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
 </head>
 <body class="auth-body">
-<div class="auth-bg">
-  <div class="auth-grid"></div>
-  <div class="auth-glow"></div>
-</div>
+{{ sprite() }}
 
 <div class="auth-shell">
-  <div class="auth-brand-side">
-    <a href="{{ url_for('login') }}" class="auth-brand">
-      <span class="brand-mark">AD</span>
-      <span>Allan Dev</span>
-    </a>
-    <h1 class="auth-headline">Crie sua conta e comece agora.</h1>
-    <p class="auth-sub">Acesso completo à biblioteca técnica: reconhecimento, exploração web, escalada de privilégio, redes e automação ofensiva em Python.</p>
-    <ul class="auth-features">
-      <li><span>◆</span> Conteúdo escrito por quem trabalha na área</li>
-      <li><span>◆</span> Sem enrolação, direto ao técnico</li>
-      <li><span>◆</span> Labs prontos e ferramentas essenciais</li>
-    </ul>
-  </div>
 
-  <div class="auth-card-side">
-    <form method="post" class="auth-card" novalidate>
+  <!-- Painel decorativo -->
+  <aside class="auth-brand-side">
+    <div class="auth-bg" aria-hidden="true">
+      <span class="auth-grid"></span>
+      <span class="hero-orb o1"></span>
+      <span class="hero-orb o3"></span>
+    </div>
+
+    <a href="{{ url_for('login') }}" class="auth-brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7 8 4.5 4L7 16"/><path d="M13.5 16.5H18"/></svg>
+      </span>
+      <span class="brand-text">Allan<b>Dev</b></span>
+    </a>
+
+    <div class="auth-copy">
+      <span class="hero-eyebrow">Crie sua conta</span>
+      <h1 class="auth-headline">Comece agora e <span class="grad-text">aprenda fazendo.</span></h1>
+      <p class="auth-sub">Acesso completo à biblioteca: reconhecimento, exploração web, escalada de privilégio, redes e automação em Python.</p>
+
+      <ul class="auth-features">
+        <li><span class="af-ico">{{ ico('shield') }}</span><div><strong>Conteúdo de quem trabalha na área</strong><small>Sem enrolação, direto ao técnico</small></div></li>
+        <li><span class="af-ico">{{ ico('target') }}</span><div><strong>Atividades e missões</strong><small>Ganhe XP e suba de patente</small></div></li>
+        <li><span class="af-ico">{{ ico('sparkles') }}</span><div><strong>Gere exercícios com IA</strong><small>Qualquer tema, no seu nível</small></div></li>
+      </ul>
+    </div>
+
+    <div class="tx auth-term" data-typing aria-hidden="true">
+      <div class="tx-bar"><span class="tx-dots"><i></i><i></i><i></i></span><span class="tx-title">novo-aluno@lab: ~</span></div>
+      <div class="tx-body">
+        <div class="tx-line" data-cmd><span class="tx-prompt">$</span><span class="tx-cmd">useradd -m aluno &amp;&amp; passwd aluno</span></div>
+        <div class="tx-line tx-out"><span class="tx-ok">[+]</span> conta criada &mdash; bem-vindo(a)!</div>
+        <div class="tx-line" data-cmd><span class="tx-prompt">$</span><span class="tx-cmd"></span></div>
+      </div>
+    </div>
+
+    <p class="auth-foot">{{ ico('shield') }} Pratique apenas em ambientes que você possui ou tem autorização.</p>
+  </aside>
+
+  <!-- Formulário -->
+  <main class="auth-card-side">
+    <form method="post" class="auth-card" novalidate data-loading-form>
+      <a href="{{ url_for('login') }}" class="auth-brand auth-brand-mobile">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7 8 4.5 4L7 16"/><path d="M13.5 16.5H18"/></svg>
+        </span>
+        <span class="brand-text">Allan<b>Dev</b></span>
+      </a>
+
       <h2>Criar conta</h2>
       <p class="auth-card-sub">Junte-se a quem quer aprender segurança de verdade.</p>
 
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
+          <div role="alert">
           {% for categoria, msg in messages %}
             <div class="flash flash-{{ categoria }}">{{ msg }}</div>
           {% endfor %}
+          </div>
         {% endif %}
       {% endwith %}
 
-      <div class="form-row">
+      <div class="field">
         <label for="nome">Nome</label>
-        <input type="text" id="nome" name="nome" required autofocus value="{{ nome }}" placeholder="Seu nome">
-      </div>
-      <div class="form-row">
-        <label for="email">Email</label>
-        <input type="email" id="email" name="email" required value="{{ email }}" placeholder="voce@email.com">
-      </div>
-      <div class="form-row">
-        <label for="senha">Senha</label>
-        <input type="password" id="senha" name="senha" required placeholder="Mínimo 8 caracteres">
-        <span class="form-hint">Mínimo 8 caracteres, única e forte.</span>
-      </div>
-      <div class="form-row">
-        <label for="confirmar">Confirmar senha</label>
-        <input type="password" id="confirmar" name="confirmar" required placeholder="••••••••">
+        <div class="input-group">
+          {{ ico('user', 'ig-ico') }}
+          <input class="input" type="text" id="nome" name="nome" required autofocus autocomplete="name" value="{{ nome }}" placeholder="Seu nome">
+        </div>
       </div>
 
-      <button type="submit" class="btn btn-primary btn-block btn-lg">Criar conta</button>
+      <div class="field">
+        <label for="email">Email</label>
+        <div class="input-group">
+          {{ ico('mail', 'ig-ico') }}
+          <input class="input" type="email" id="email" name="email" required autocomplete="email" inputmode="email" value="{{ email }}" placeholder="voce@email.com">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="senha">Senha</label>
+        <div class="input-group">
+          {{ ico('lock', 'ig-ico') }}
+          <input class="input" type="password" id="senha" name="senha" required autocomplete="new-password" placeholder="Mínimo 8 caracteres" aria-describedby="pwMeter" data-strength-input>
+          <button type="button" class="ig-action" data-toggle-pw="senha" aria-label="Mostrar senha" aria-pressed="false">{{ ico('eye', 'ico-show') }}{{ ico('eye-off', 'ico-hide') }}</button>
+        </div>
+        <div class="pw-meter" id="pwMeter" data-strength data-level="0" aria-live="polite">
+          <div class="pw-bars" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+          <div class="pw-label">Força da senha: <b data-strength-label>—</b></div>
+          <ul class="pw-rules">
+            <li data-rule="len">8+ caracteres</li>
+            <li data-rule="case">Maiúscula e minúscula</li>
+            <li data-rule="num">Um número</li>
+            <li data-rule="sym">Um símbolo</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="confirmar">Confirmar senha</label>
+        <div class="input-group">
+          {{ ico('lock', 'ig-ico') }}
+          <input class="input" type="password" id="confirmar" name="confirmar" required autocomplete="new-password" placeholder="Repita a senha" aria-describedby="pwMatch">
+          <button type="button" class="ig-action" data-toggle-pw="confirmar" aria-label="Mostrar senha" aria-pressed="false">{{ ico('eye', 'ico-show') }}{{ ico('eye-off', 'ico-hide') }}</button>
+        </div>
+        <span class="field-hint" id="pwMatch" data-match-for="confirmar" data-match-with="senha" aria-live="polite"></span>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-block btn-lg auth-submit"><span class="btn-label">Criar conta</span><span class="spinner" aria-hidden="true"></span></button>
 
       <p class="auth-switch">Já tem conta? <a href="{{ url_for('login') }}">Entre aqui</a></p>
     </form>
-  </div>
+  </main>
 </div>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

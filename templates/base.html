@@ -1,53 +1,175 @@
+{% from "_ui.html" import ico, sprite %}
+{#- Categorias para o menu/rodapé: prefere `nav_categorias` (se alguém injetar via context processor),
+    depois `categorias` da home (com contagem) e por fim uma lista fixa. -#}
+{% set _cats = [] %}
+{% if nav_categorias is defined and nav_categorias %}
+  {% for c in nav_categorias %}{% set _ = _cats.append({'nome': c.categoria, 'total': c.total}) %}{% endfor %}
+{% elif request.endpoint == 'index' and categorias is defined and categorias %}
+  {% for c in categorias %}{% set _ = _cats.append({'nome': c.categoria, 'total': c.total}) %}{% endfor %}
+{% else %}
+  {% for n in ['Fundamentos', 'Linux', 'Redes', 'Python', 'Pentest'] %}{% set _ = _cats.append({'nome': n, 'total': none}) %}{% endfor %}
+{% endif %}
+{% set _cat_ativa = categoria_ativa if (request.endpoint == 'index' and categoria_ativa is defined) else '' %}
+{% set _ep = request.endpoint or '' %}
+{% set _nome = (usuario_atual.nome if usuario_atual else '') or '' %}
+{% set _ini = (_nome.strip()[:1] or 'A')|upper %}
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}Allan Dev — Security Research{% endblock %}</title>
-<meta name="description" content="Pentest, ofensivo, CTF e red team. Conteúdo técnico real.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+<meta name="description" content="{% block meta_desc %}Blog educacional de tecnologia: Linux, redes, Python e segurança da informação — com atividades práticas e geradas por IA.{% endblock %}">
+<meta name="theme-color" content="#07090d">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%2339d98a'/><stop offset='1' stop-color='%2358a6ff'/></linearGradient></defs><rect width='64' height='64' rx='16' fill='url(%23g)'/><path d='m20 22 11 10-11 10' fill='none' stroke='%2304120a' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/><path d='M35 44h11' stroke='%2304120a' stroke-width='6' stroke-linecap='round'/></svg>">
+<script>document.documentElement.classList.add('js');</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 {% block extra_css %}{% endblock %}
+{% block head_extra %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
+{{ sprite() }}
 
-{% if request.endpoint == 'post' %}
-<div class="reading-bar" id="readingBar"></div>
+<a class="skip-link" href="#main">Pular para o conteúdo</a>
+
+{% if request.endpoint == 'post_detalhe' %}
+<div class="reading-bar" id="readingBar" aria-hidden="true"></div>
 {% endif %}
 
-<header class="site-header">
-  <div class="wrap">
-    <a href="{{ url_for('index') }}" class="brand">
-      <span class="brand-mark">AD</span>
-      <span class="brand-text">AllanDev</span>
+<header class="site-header" id="siteHeader">
+  <div class="wrap header-inner">
+
+    <a href="{{ url_for('index') }}" class="brand" aria-label="Allan Dev — página inicial">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7 8 4.5 4L7 16"/><path d="M13.5 16.5H18"/></svg>
+      </span>
+      <span class="brand-text">Allan<b>Dev</b></span>
+      <span class="brand-tag">research</span>
     </a>
 
-    <nav class="site-nav" id="siteNav">
-      <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' else '' }}">Início</a>
-      <a href="{{ url_for('atividades_index') }}" class="{{ 'active' if request.endpoint in ('atividades_index', 'licao_detalhe') else '' }}">🎯 Atividades</a>
-      <a href="{{ url_for('index') }}?cat=Pentest">Pentest</a>
-      <a href="{{ url_for('index') }}?cat=Linux">Linux</a>
-      <a href="{{ url_for('index') }}?cat=Redes">Redes</a>
-      <a href="{{ url_for('index') }}?cat=Python">Python</a>
-      <a href="{{ url_for('perfil_publico') }}" class="{{ 'active' if request.endpoint == 'perfil_publico' else '' }}">Sobre</a>
-      {% if usuario_atual %}
-        <form method="post" action="{{ url_for('logout') }}" class="nav-form">
-          <button type="submit" class="nav-logout">Sair</button>
-        </form>
-      {% else %}
-        <a href="{{ url_for('login') }}" class="nav-login">Entrar</a>
-      {% endif %}
+    <nav class="site-nav" id="siteNav" aria-label="Navegação principal">
+
+      <form class="nav-search" action="{{ url_for('index') }}" method="get" role="search">
+        {{ ico('search') }}
+        <input type="search" name="q" placeholder="Buscar posts…" aria-label="Buscar posts" autocomplete="off" data-search>
+      </form>
+
+      <a href="{{ url_for('index') }}" class="nav-link {{ 'active' if _ep == 'index' and not _cat_ativa else '' }}" {% if _ep == 'index' and not _cat_ativa %}aria-current="page"{% endif %}>
+        {{ ico('home') }}<span>Início</span>
+      </a>
+      <a href="{{ url_for('atividades_index') }}" class="nav-link {{ 'active' if _ep in ('atividades_index', 'licao_detalhe') else '' }}" {% if _ep in ('atividades_index', 'licao_detalhe') %}aria-current="page"{% endif %}>
+        {{ ico('target') }}<span>Atividades</span>
+      </a>
+      <a href="{{ url_for('ia.index') }}" class="nav-link nav-ia {{ 'active' if request.blueprint == 'ia' else '' }}" {% if request.blueprint == 'ia' %}aria-current="page"{% endif %}>
+        {{ ico('sparkles') }}<span>IA</span><em class="nav-new">novo</em>
+      </a>
+
+      {#- Espaço reservado para links extras (ex.: "Meu painel", "Ranking"). -#}
+      {% block nav_extra %}{% endblock %}
+
+      <div class="nav-dd" data-dd>
+        <button type="button" class="nav-link {{ 'active' if _cat_ativa else '' }}" data-dd-btn aria-expanded="false" aria-haspopup="true" aria-controls="ddCats">
+          {{ ico('grid') }}<span>Categorias</span>{{ ico('chevron-down', 'chev') }}
+        </button>
+        <div class="nav-dd-menu" id="ddCats" role="menu" aria-label="Categorias">
+          {% for c in _cats %}
+          <a role="menuitem" class="dd-item cat-{{ c.nome|lower|replace(' ', '') }} {{ 'active' if _cat_ativa == c.nome else '' }}" href="{{ url_for('index', categoria=c.nome) }}">
+            <i class="dd-dot" aria-hidden="true"></i><span>{{ c.nome }}</span>{% if c.total is not none %}<small>{{ c.total }}</small>{% endif %}
+          </a>
+          {% endfor %}
+          <a role="menuitem" class="dd-all" href="{{ url_for('index') }}">Ver todos os posts {{ ico('arrow-right') }}</a>
+        </div>
+      </div>
+
+      <a href="{{ url_for('perfil_publico') }}" class="nav-link {{ 'active' if _ep == 'perfil_publico' else '' }}" {% if _ep == 'perfil_publico' %}aria-current="page"{% endif %}>
+        {{ ico('user') }}<span>Sobre</span>
+      </a>
+
+      {#- Bloco de conta: só aparece dentro do menu mobile (no desktop há o menu de usuário). -#}
+      <div class="nav-account">
+        {% if usuario_atual %}
+          <div class="nav-account-who">
+            <span class="avatar avatar-md">{{ _ini }}</span>
+            <div><strong>{{ _nome }}</strong><small>{{ usuario_atual.email }}</small></div>
+          </div>
+          <form method="post" action="{{ url_for('logout') }}">
+            <button type="submit" class="btn btn-outline btn-block">{{ ico('logout') }} Sair da conta</button>
+          </form>
+        {% else %}
+          <a class="btn btn-primary btn-block" href="{{ url_for('login') }}">Entrar</a>
+          <a class="btn btn-outline btn-block" href="{{ url_for('cadastro') }}">Criar conta</a>
+        {% endif %}
+      </div>
     </nav>
 
-    <button class="nav-toggle" id="navToggle" aria-label="Abrir menu">
-      <span></span><span></span><span></span>
-    </button>
+    <div class="header-actions">
+      <button type="button" class="search-btn" data-search-open aria-label="Buscar no site (atalho: /)">
+        {{ ico('search') }}<span class="search-btn-label">Buscar</span><kbd class="kbd">/</kbd>
+      </button>
+
+      {% if usuario_atual %}
+      <div class="user-menu" data-dd>
+        <button type="button" class="user-btn" data-dd-btn aria-expanded="false" aria-haspopup="true" aria-controls="userPop" aria-label="Menu da conta de {{ _nome }}">
+          <span class="avatar avatar-sm">{{ _ini }}</span>
+          <span class="user-name">{{ _nome.split()[0] if _nome else 'Conta' }}</span>
+          {{ ico('chevron-down', 'chev') }}
+        </button>
+        <div class="user-pop" id="userPop" role="menu">
+          <div class="user-pop-head">
+            <span class="avatar avatar-md">{{ _ini }}</span>
+            <div><strong>{{ _nome }}</strong><small>{{ usuario_atual.email }}</small></div>
+          </div>
+          {#- Espaço reservado para itens extras do menu do usuário. -#}
+          {% block user_menu_extra %}{% endblock %}
+          <form method="post" action="{{ url_for('logout') }}" role="none">
+            <button type="submit" class="pop-item pop-danger" role="menuitem">{{ ico('logout') }} Sair</button>
+          </form>
+        </div>
+      </div>
+      {% else %}
+      <a href="{{ url_for('login') }}" class="btn btn-ghost btn-sm header-login">Entrar</a>
+      <a href="{{ url_for('cadastro') }}" class="btn btn-primary btn-sm header-signup">Criar conta</a>
+      {% endif %}
+
+      <button type="button" class="nav-toggle" id="navToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="siteNav">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+
   </div>
 </header>
+<div class="drawer-backdrop" id="drawerBackdrop" aria-hidden="true"></div>
+
+<!-- Busca em tela cheia (atalho "/") -->
+<div class="search-overlay" id="searchOverlay" hidden role="dialog" aria-modal="true" aria-label="Buscar no site">
+  <div class="search-box">
+    <form class="search-box-form" action="{{ url_for('index') }}" method="get" role="search">
+      {{ ico('search') }}
+      <input type="search" name="q" id="searchOverlayInput" placeholder="Buscar: nmap, sql injection, permissões…" autocomplete="off" aria-label="Buscar posts" data-search>
+      <button type="button" class="kbd kbd-btn" data-search-close aria-label="Fechar busca">esc</button>
+    </form>
+    <div class="search-suggest">
+      <span class="search-suggest-label">Sugestões</span>
+      {% for t in ['nmap', 'sql injection', 'linux', 'python', 'redes'] %}
+        <a class="chip" href="{{ url_for('index', q=t) }}">{{ t }}</a>
+      {% endfor %}
+    </div>
+    <div class="search-suggest">
+      <span class="search-suggest-label">Categorias</span>
+      {% for c in _cats %}
+        <a class="tag-categoria cat-{{ c.nome|lower|replace(' ', '') }}" href="{{ url_for('index', categoria=c.nome) }}">{{ c.nome }}</a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
-    <div class="flash-wrap">
+    <div class="wrap flash-wrap" role="status" aria-live="polite">
       {% for categoria, msg in messages %}
         <div class="flash flash-{{ categoria }}">{{ msg }}</div>
       {% endfor %}
@@ -55,17 +177,59 @@
   {% endif %}
 {% endwith %}
 
+<div id="main" tabindex="-1">
 {% block content %}{% endblock %}
+</div>
 
 <footer class="site-footer">
   <div class="wrap">
-    <div class="footer-brand">
-      <span class="brand-mark" style="width:24px;height:24px;font-size:.6rem;">AD</span>
-      AllanDev
+    <div class="footer-grid">
+
+      <div class="footer-col footer-about">
+        <a href="{{ url_for('index') }}" class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7 8 4.5 4L7 16"/><path d="M13.5 16.5H18"/></svg>
+          </span>
+          <span class="brand-text">Allan<b>Dev</b></span>
+        </a>
+        <p>Blog educacional de tecnologia: Linux, redes, Python e segurança da informação. Guias técnicos, laboratórios no terminal e atividades geradas por IA para aprender fazendo.</p>
+      </div>
+
+      <nav class="footer-col" aria-label="Navegação do rodapé">
+        <h4>Navegação</h4>
+        <ul>
+          <li><a href="{{ url_for('index') }}">Início</a></li>
+          <li><a href="{{ url_for('atividades_index') }}">Atividades</a></li>
+          <li><a href="{{ url_for('ia.index') }}">Atividades com IA</a></li>
+          <li><a href="{{ url_for('perfil_publico') }}">Sobre o autor</a></li>
+        </ul>
+      </nav>
+
+      <nav class="footer-col" aria-label="Categorias">
+        <h4>Categorias</h4>
+        <ul>
+          {% for c in _cats %}
+          <li><a href="{{ url_for('index', categoria=c.nome) }}">{{ c.nome }}</a></li>
+          {% endfor %}
+        </ul>
+      </nav>
+
+      <aside class="footer-col footer-ethics">
+        <span class="footer-ethics-ico">{{ ico('shield') }}</span>
+        <h4>Uso ético e educacional</h4>
+        <p>Todo o conteúdo existe para ensinar defesa e entendimento. Pratique apenas em laboratórios próprios ou com autorização expressa — acessar sistemas sem permissão é crime.</p>
+      </aside>
+
     </div>
-    <span>&copy; 2025 — Conteúdo técnico real. Apenas para fins educacionais.</span>
+
+    <div class="footer-bottom">
+      <span>&copy; <span data-year>2025</span> Allan Dev — Security Research</span>
+      <span class="footer-bottom-note">Feito para quem aprende fazendo.</span>
+    </div>
   </div>
 </footer>
+
+<button type="button" class="to-top" id="toTop" aria-label="Voltar ao topo">{{ ico('arrow-up') }}</button>
 
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 {% block extra_js %}{% endblock %}

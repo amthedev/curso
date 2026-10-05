@@ -64,36 +64,73 @@ function linkSeguro(label, url) {
     ' rel="noopener noreferrer">' + label + "</a>";
 }
 
-/* Syntax highlight for code blocks */
+/* Syntax highlight for code blocks.
+   Passada única: uma regex com uma alternativa por tipo de token. Antes eram
+   vários .replace() em cadeia e o seguinte reprocessava o HTML já inserido
+   (ex: aparecia  "tok-flag">  no meio do código). O texto chega já escapado,
+   então aspas duplas aparecem como &quot;. */
+var HL_REGRAS = {
+  python: [
+    ["tok-string", '&quot;&quot;&quot;[\\s\\S]*?&quot;&quot;&quot;|\'\'\'[\\s\\S]*?\'\'\'|&quot;(?:(?!&quot;)[^\\n])*&quot;|\'[^\'\\n]*\''],
+    ["tok-comment", "#[^\\n]*"],
+    ["tok-keyword", "\\b(?:def|class|import|from|return|if|elif|else|for|while|in|not|and|or|with|as|pass|raise|try|except|finally|yield|lambda|True|False|None|self|print)\\b"],
+    ["tok-number", "\\b\\d+(?:\\.\\d+)?\\b"]
+  ],
+  bash: [
+    ["tok-string", '&quot;(?:(?!&quot;)[^\\n])*&quot;|\'[^\'\\n]*\''],
+    ["tok-comment", "(?:^|[ \\t])#[^\\n]*"],
+    ["tok-bash", "\\b(?:apt-get|sudo|apt|pip3|pip|python3|python|nmap|curl|wget|ssh|netcat|nc|chmod|chown|ls|cd|cat|grep|awk|sed|find|echo|export|source)\\b"],
+    ["tok-flag", "(?:^|[ \\t])--?[a-zA-Z][\\w-]*"]
+  ],
+  sql: [
+    ["tok-comment", "--[^\\n]*"],
+    ["tok-string", "'[^'\\n]*'"],
+    ["tok-keyword", "\\b(?:SELECT|FROM|WHERE|INSERT|UPDATE|DELETE|DROP|CREATE|TABLE|INTO|VALUES|AND|OR|UNION|ALL|NULL|JOIN|ON|SET|LIMIT|ORDER BY|GROUP BY)\\b"]
+  ]
+};
+HL_REGRAS.py = HL_REGRAS.python;
+HL_REGRAS.sh = HL_REGRAS.shell = HL_REGRAS.zsh = HL_REGRAS.bash;
+
 function highlightCode(code, lang) {
   var escaped = escapeHtml(code);
+  var regras = HL_REGRAS[lang];
+  /* Generic / C / other — sem realce para evitar conflitos */
+  if (!regras) return escaped;
 
-  /* Python */
-  if (lang === "python" || lang === "py") {
-    escaped = escaped
-      .replace(/(#[^\n]*)/g, '<span class="tok-comment">$1</span>')
-      .replace(/\b(def|class|import|from|return|if|elif|else|for|while|in|not|and|or|with|as|pass|raise|try|except|finally|yield|lambda|True|False|None|self|print)\b/g, '<span class="tok-keyword">$1</span>')
-      .replace(/("""[\s\S]*?"""|'''[\s\S]*?'''|"[^"]*"|'[^']*')/g, '<span class="tok-string">$1</span>')
-      .replace(/\b(\d+)\b/g, '<span class="tok-number">$1</span>');
-  }
-  /* Bash / Shell */
-  else if (lang === "bash" || lang === "sh" || lang === "shell" || lang === "zsh") {
-    escaped = escaped
-      .replace(/(#[^\n]*)/g, '<span class="tok-comment">$1</span>')
-      .replace(/\b(sudo|apt|apt-get|pip|pip3|python|python3|nmap|curl|wget|ssh|nc|netcat|chmod|chown|ls|cd|cat|grep|awk|sed|find|echo|export|source)\b/g, '<span class="tok-bash">$1</span>')
-      .replace(/(--?[a-zA-Z][\w-]*)/g, '<span class="tok-flag">$1</span>')
-      .replace(/("([^"]*)")/g, '<span class="tok-string">$1</span>');
-  }
-  /* SQL */
-  else if (lang === "sql") {
-    escaped = escaped
-      .replace(/(--.*)$/gm, '<span class="tok-comment">$1</span>')
-      .replace(/\b(SELECT|FROM|WHERE|INSERT|UPDATE|DELETE|DROP|CREATE|TABLE|INTO|VALUES|AND|OR|UNION|ALL|NULL|JOIN|ON|SET|LIMIT|ORDER BY|GROUP BY)\b/gi, '<span class="tok-keyword">$1</span>')
-      .replace(/('[^']*')/g, '<span class="tok-string">$1</span>');
-  }
-  /* Generic / C / other — no highlight to avoid regex conflicts */
+  var re = new RegExp(regras.map(function (r) { return "(" + r[1] + ")"; }).join("|"), lang === "sql" ? "gim" : "gm");
+  return escaped.replace(re, function (m) {
+    for (var i = 0; i < regras.length; i++) {
+      if (arguments[i + 1] === undefined) continue;
+      /* regras que consomem o espaço anterior: devolve-o fora do <span> */
+      var lead = regras[i][1].indexOf("(?:^|[ \\t])") === 0 ? m.match(/^[ \t]*/)[0] : "";
+      return lead + '<span class="' + regras[i][0] + '">' + m.slice(lead.length) + "</span>";
+    }
+    return m;
+  });
+}
 
-  return escaped;
+/* Tabela markdown (| a | b |  +  |---|---|). Sem linha separadora, vira só corpo. */
+function tabelaHtml(linhas) {
+  function celulas(l) {
+    return l.replace(/^\|/, "").replace(/\|$/, "").replace(/\\\|/g, "\u0001").split("|")
+      .map(function (c) { return c.replace(/\u0001/g, "|").trim(); });
+  }
+  var rows = linhas.map(celulas);
+  var temSep = rows.length > 1 && rows[1].every(function (c) { return /^:?-+:?$/.test(c); });
+  var alinhar = temSep ? rows[1].map(function (c) {
+    return /^:-+:$/.test(c) ? "center" : (/-:$/.test(c) ? "right" : "");
+  }) : [];
+  function cel(tag, c, i) {
+    var st = alinhar[i] ? ' style="text-align:' + alinhar[i] + '"' : "";
+    return "<" + tag + st + ">" + inlineMarkdown(c) + "</" + tag + ">";
+  }
+  var corpo = temSep ? rows.slice(2) : rows;
+  var html = '<div class="table-wrap"><table>';
+  if (temSep) html += "<thead><tr>" + rows[0].map(function (c, i) { return cel("th", c, i); }).join("") + "</tr></thead>";
+  html += "<tbody>" + corpo.map(function (r) {
+    return "<tr>" + r.map(function (c, i) { return cel("td", c, i); }).join("") + "</tr>";
+  }).join("") + "</tbody></table></div>";
+  return html;
 }
 
 function markdownParaHtml(md) {
@@ -143,6 +180,16 @@ function markdownParaHtml(md) {
 
     if (trimmed === "") {
       fecharLista();
+      continue;
+    }
+
+    /* tabela */
+    if (trimmed.charAt(0) === "|" && trimmed.indexOf("|", 1) !== -1) {
+      fecharLista();
+      var bloco = [], j = i;
+      while (j < linhas.length && linhas[j].trim().charAt(0) === "|") { bloco.push(linhas[j].trim()); j++; }
+      html += tabelaHtml(bloco);
+      i = j - 1;
       continue;
     }
 

@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% block title %}{{ atividade.titulo }} — Atividades com IA — Allan Dev{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/ia.css') }}">
+{% endblock %}
+
+{% block content %}
+{% set focos = {'teoria': 'Teoria', 'pratica': 'Prática', 'misto': 'Misto'} %}
+{% include "ia/_icones.html" %}
+
+<section class="ia-hero ia-hero-ver">
+  <div class="ia-hero-glow" aria-hidden="true"></div>
+  <div class="wrap">
+    <a class="ia-voltar" href="{{ url_for('ia.index') }}">
+      <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-arrow-left"/></svg> Atividades com IA
+    </a>
+    <div class="ia-ver-tags">
+      <span class="ia-badge ia-badge-accent"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-sparkles"/></svg> {{ row.tema }}</span>
+      <span class="nivel-badge nivel-{{ row.nivel|lower }}">{{ row.nivel }}</span>
+      <span class="ia-badge">{{ focos.get(row.foco, 'Misto') }}</span>
+      <span class="ia-badge ia-badge-warn"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-bolt"/></svg> {{ progresso.xp_total }} XP</span>
+      {% if row.tentativas > 1 %}<span class="ia-badge">Tentativa {{ row.tentativas }}</span>{% endif %}
+    </div>
+    <h1 class="ia-ver-titulo">{{ atividade.titulo }}</h1>
+    {% if atividade.descricao %}<p class="ia-hero-sub">{{ atividade.descricao }}</p>{% endif %}
+
+    {% if atividade.objetivos %}
+    <div class="ia-objetivos">
+      <span class="ia-objetivos-lbl"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-target"/></svg> Objetivos</span>
+      <ul role="list">
+        {% for o in atividade.objetivos %}<li><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-check"/></svg> {{ o }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    <p class="ia-modelo"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-cpu"/></svg> gerado por <code>{{ row.modelo or 'IA' }}</code> · {{ row.criado_em|ia_data }}</p>
+  </div>
+</section>
+
+<div class="wrap ia-ver" id="iaVer">
+  <aside class="ia-ver-side" aria-label="Progresso da atividade">
+    <div class="ia-card ia-painel">
+      <div class="ia-painel-top">
+        <div class="ia-painel-prog">
+          <span class="ia-painel-lbl">Progresso</span>
+          <strong><span id="iaRespondidas">{{ progresso.respondidas }}</span>/{{ progresso.total }}</strong>
+        </div>
+        <div class="ia-painel-xp">
+          <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-bolt"/></svg>
+          <strong id="iaXp">{{ progresso.xp }}</strong><span>/{{ progresso.xp_total }} XP</span>
+        </div>
+      </div>
+      <div class="ia-prog" role="progressbar" aria-label="Questões respondidas"
+           aria-valuemin="0" aria-valuemax="{{ progresso.total }}" aria-valuenow="{{ progresso.respondidas }}" id="iaProg">
+        <span id="iaProgBar" style="width: {{ ((progresso.respondidas / progresso.total * 100)|round|int) if progresso.total else 0 }}%"></span>
+      </div>
+
+      <nav class="ia-qnav" id="iaQnav" aria-label="Ir para a questão">
+        {% for q in payload.questoes %}
+        <button type="button" class="ia-qnav-btn" data-ir="{{ q.id }}" aria-label="Questão {{ loop.index }}">{{ loop.index }}</button>
+        {% endfor %}
+      </nav>
+
+      <div class="ia-modo" role="group" aria-label="Modo de exibição">
+        <button type="button" class="ia-modo-btn" data-modo="uma" aria-pressed="true">
+          <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-one"/></svg> Uma por vez
+        </button>
+        <button type="button" class="ia-modo-btn" data-modo="todas" aria-pressed="false">
+          <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-rows"/></svg> Todas
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="ia-ver-main">
+    {% if atividade.resumo_teorico %}
+    <details class="ia-card ia-resumo" {{ '' if progresso.respondidas else 'open' }}>
+      <summary>
+        <span class="ia-resumo-ico"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-teoria"/></svg></span>
+        <span class="ia-resumo-tit"><strong>Resumo teórico</strong><small>Leia antes de começar — é a base das questões</small></span>
+        <svg class="ia-ico ia-resumo-seta" aria-hidden="true"><use href="#ia-i-down"/></svg>
+      </summary>
+      {# main.js renderiza #postBody a partir do data-raw (escapando HTML). Nunca |safe aqui. #}
+      <div class="post-body ia-resumo-body" id="postBody" data-raw="{{ atividade.resumo_teorico }}"></div>
+    </details>
+    {% endif %}
+
+    <section class="ia-card ia-final" id="iaFinal" hidden tabindex="-1" aria-labelledby="iaFinalTitulo"></section>
+
+    <div class="ia-questoes" id="iaQuestoes">
+      {% for q in payload.questoes %}
+      <article class="ia-q" id="q-{{ q.id }}" data-qid="{{ q.id }}" data-tipo="{{ q.tipo }}" data-idx="{{ loop.index0 }}"
+               aria-labelledby="q-{{ q.id }}-tit" tabindex="-1">
+        <header class="ia-q-head">
+          <span class="ia-q-num">Questão <strong>{{ loop.index }}</strong><span>/{{ loop.length }}</span></span>
+          <span class="ia-q-tipo ia-qt-{{ q.tipo }}">
+            <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-{{ q.tipo }}"/></svg> {{ tipos[q.tipo] }}
+          </span>
+          <span class="ia-q-xp" data-xp="{{ q.xp }}">+{{ q.xp }} XP</span>
+        </header>
+
+        <h2 class="ia-q-enunciado" id="q-{{ q.id }}-tit">{{ q.enunciado|ia_inline }}</h2>
+
+        <form class="ia-q-form" novalidate>
+          {% if q.tipo == 'multipla' %}
+          <fieldset class="ia-opts">
+            <legend class="ia-sr">Escolha uma alternativa</legend>
+            {% for alt in q.alternativas %}
+            <label class="ia-opt" data-valor="{{ loop.index0 }}">
+              <input type="radio" name="r-{{ q.id }}" value="{{ loop.index0 }}">
+              <span class="ia-opt-letra" aria-hidden="true">{{ 'ABCDE'[loop.index0] }}</span>
+              <span class="ia-opt-txt">{{ alt|ia_inline }}</span>
+              <span class="ia-opt-mark" aria-hidden="true"></span>
+            </label>
+            {% endfor %}
+          </fieldset>
+
+          {% elif q.tipo == 'vf' %}
+          <fieldset class="ia-opts ia-vf">
+            <legend class="ia-sr">Verdadeiro ou falso?</legend>
+            <label class="ia-opt ia-vf-opt" data-valor="true">
+              <input type="radio" name="r-{{ q.id }}" value="true">
+              <span class="ia-vf-ico" aria-hidden="true"><svg class="ia-ico"><use href="#ia-i-check"/></svg></span>
+              <span class="ia-opt-txt">Verdadeiro</span>
+              <span class="ia-opt-mark" aria-hidden="true"></span>
+            </label>
+            <label class="ia-opt ia-vf-opt" data-valor="false">
+              <input type="radio" name="r-{{ q.id }}" value="false">
+              <span class="ia-vf-ico" aria-hidden="true"><svg class="ia-ico"><use href="#ia-i-x"/></svg></span>
+              <span class="ia-opt-txt">Falso</span>
+              <span class="ia-opt-mark" aria-hidden="true"></span>
+            </label>
+          </fieldset>
+
+          {% elif q.tipo == 'aberta' %}
+          <label class="ia-sr" for="r-{{ q.id }}">Sua resposta</label>
+          <div class="ia-aberta">
+            <textarea id="r-{{ q.id }}" name="resposta" rows="4" maxlength="1500"
+                      placeholder="Responda com suas palavras (1 a 3 frases)…"></textarea>
+            <span class="ia-count" aria-live="off"><span class="n">0</span>/1500</span>
+          </div>
+
+          {% elif q.tipo == 'comando' %}
+          <label class="ia-sr" for="r-{{ q.id }}">Digite o comando</label>
+          <div class="ia-cmd">
+            <div class="ia-term-bar"><i></i><i></i><i></i><span>bash</span></div>
+            <div class="ia-cmd-linha">
+              <span class="ia-cmd-prompt" aria-hidden="true">aluno@lab:~$</span>
+              <input id="r-{{ q.id }}" name="resposta" type="text" maxlength="300" autocomplete="off"
+                     autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="digite o comando e tecle Enter">
+            </div>
+          </div>
+
+          {% elif q.tipo == 'ordenar' %}
+          <p class="ia-ordem-dica" id="q-{{ q.id }}-instr">Arraste os itens ou use as setas para colocar na ordem certa.</p>
+          <ol class="ia-ordem" aria-describedby="q-{{ q.id }}-instr">
+            {% for p in q.passos %}
+            <li class="ia-passo" data-pid="{{ p.id }}" draggable="true">
+              <span class="ia-passo-grip" aria-hidden="true"><svg class="ia-ico"><use href="#ia-i-grip"/></svg></span>
+              <span class="ia-passo-n" aria-hidden="true">{{ loop.index }}</span>
+              <span class="ia-passo-txt">{{ p.texto|ia_inline }}</span>
+              <span class="ia-passo-btns">
+                <button type="button" class="ia-passo-btn" data-mover="-1" aria-label="Mover para cima">
+                  <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-up"/></svg>
+                </button>
+                <button type="button" class="ia-passo-btn" data-mover="1" aria-label="Mover para baixo">
+                  <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-down"/></svg>
+                </button>
+              </span>
+            </li>
+            {% endfor %}
+          </ol>
+          <p class="ia-sr" aria-live="polite" data-ordem-status></p>
+          {% endif %}
+
+          <div class="ia-dica-box" hidden>
+            <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-bulb"/></svg>
+            <p></p>
+          </div>
+
+          <div class="ia-q-acoes">
+            <button type="submit" class="btn btn-primary ia-q-enviar">
+              <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-check"/></svg>
+              <span>Confirmar resposta</span>
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm ia-q-dica">
+              <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-bulb"/></svg>
+              <span>Dica <small>(−50% XP)</small></span>
+            </button>
+          </div>
+          <p class="ia-q-erro" role="alert" hidden></p>
+        </form>
+
+        <div class="ia-fb-wrap" aria-live="polite"></div>
+
+        <nav class="ia-q-nav" aria-label="Navegação entre questões">
+          <button type="button" class="btn btn-ghost btn-sm" data-passo="-1" {{ 'disabled' if loop.first else '' }}>
+            <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-arrow-left"/></svg> Anterior
+          </button>
+          <button type="button" class="btn btn-outline btn-sm ia-q-prox" data-passo="1">
+            {{ 'Ver resultado' if loop.last else 'Próxima' }} <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-arrow-right"/></svg>
+          </button>
+        </nav>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% include "ia/_loading.html" %}
+<script type="application/json" id="iaData">{{ payload|tojson }}</script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/ia.js') }}"></script>
+{% endblock %}

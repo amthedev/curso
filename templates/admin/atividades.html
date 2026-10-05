@@ -3,23 +3,53 @@
 {% block heading %}Atividades{% endblock %}
 
 {% block admin_content %}
-<section class="admin-panel">
+<section class="admin-panel admin-panel-flush">
+  <div class="admin-toolbar">
+    <div class="admin-chips admin-chips-inline" role="group" aria-label="Filtrar por tipo">
+      <button type="button" class="admin-chip is-on" data-filter-chip="">Tudo</button>
+      <button type="button" class="admin-chip" data-filter-chip="novo">Publicações</button>
+      <button type="button" class="admin-chip" data-filter-chip="edit">Edições</button>
+      <button type="button" class="admin-chip" data-filter-chip="del">Exclusões</button>
+      <button type="button" class="admin-chip" data-filter-chip="perfil">Perfil</button>
+    </div>
+    <div class="admin-toolbar-end">
+      <span class="admin-count"><strong data-count>{{ atividades|length }}</strong> de {{ atividades|length }} registros</span>
+    </div>
+  </div>
+
   {% if atividades %}
-  <ul class="atividade-lista atividade-lista-full">
+  {% set dia = namespace(atual='') %}
+  <div class="timeline" data-filter-scope>
     {% for a in atividades %}
-    <li>
-      <span class="atividade-ponto"></span>
-      <div>
-        <p>{{ a.descricao }}</p>
-        <span class="atividade-data">{{ a.criado_em }}</span>
+    {% set d = a.descricao %}
+    {% set tipo = 'novo' if d.startswith('Publicou') else ('edit' if d.startswith('Editou') else ('del' if d.startswith('Excluiu') else 'perfil')) %}
+    {% if a.criado_em[:10] != dia.atual %}
+      {% set dia.atual = a.criado_em[:10] %}
+      <h3 class="timeline-dia" data-dia>{{ a.criado_em[:10] | data_br }}</h3>
+    {% endif %}
+    <div class="timeline-item at-{{ tipo }}" data-row data-q="{{ d|lower }}" data-cat="{{ tipo }}">
+      <span class="timeline-ico"><svg class="ic"><use href="#{{ {'novo': 'a-plus', 'edit': 'a-edit', 'del': 'a-trash', 'perfil': 'a-user'}[tipo] }}"/></svg></span>
+      <div class="timeline-body">
+        <p>{{ d }}</p>
+        <span class="atividade-data"><svg class="ic"><use href="#a-clock"/></svg> {{ a.criado_em[11:16] }}</span>
       </div>
-    </li>
+      <span class="timeline-tipo">{{ {'novo': 'Publicação', 'edit': 'Edição', 'del': 'Exclusão', 'perfil': 'Perfil'}[tipo] }}</span>
+    </div>
     {% endfor %}
-  </ul>
+  </div>
+
+  <div class="admin-empty" data-empty hidden>
+    <span class="admin-empty-ico"><svg class="ic"><use href="#a-search"/></svg></span>
+    <strong>Nenhum registro desse tipo</strong>
+    <p>Escolha outro filtro para ver mais atividades.</p>
+    <button type="button" class="btn btn-outline btn-sm" data-filter-reset>Ver tudo</button>
+  </div>
   {% else %}
-  <div class="admin-vazio-box">
-    <p>Nenhuma atividade disponível ainda.</p>
-    <span>As ações feitas no painel — publicar, editar e excluir postagens, atualizar o perfil — vão aparecer aqui.</span>
+  <div class="admin-empty">
+    <span class="admin-empty-ico"><svg class="ic"><use href="#a-activity"/></svg></span>
+    <strong>Nenhuma atividade disponível ainda</strong>
+    <p>As ações feitas no painel — publicar, editar e excluir postagens, atualizar o perfil — vão aparecer aqui.</p>
+    <a href="{{ url_for('admin_post_novo') }}" class="btn btn-primary btn-sm"><svg class="ic"><use href="#a-plus"/></svg> Nova postagem</a>
   </div>
   {% endif %}
 </section>

@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% from "aluno/_icones.html" import ico %}
+{% block title %}Ranking — Allan Dev{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/aluno.css') }}">
+{% endblock %}
+
+{% block content %}
+<main class="wrap al-page">
+
+  <header class="al-rk-hero">
+    <span class="al-eyebrow">// leaderboard</span>
+    <h1>Ranking</h1>
+    <p>Quem mais acumulou XP completando missões e atividades. Os nomes aparecem abreviados e ninguém vê o email de ninguém.</p>
+  </header>
+
+  <nav class="al-tabs" aria-label="Período do ranking">
+    {% for slug, rotulo in periodos %}
+    <a href="{{ url_for('aluno.ranking', periodo=slug) }}"{% if slug == periodo %} aria-current="page"{% endif %}>{{ rotulo }}</a>
+    {% endfor %}
+  </nav>
+  <p class="al-rk-periodo">{{ periodo_rotulo }}</p>
+
+  {# ───────── Sua posição ───────── #}
+  {% if eu_pos %}
+  <div class="al-minha">
+    <span class="al-minha-pos" aria-hidden="true">#{{ eu_pos.posicao }}</span>
+    <div class="al-minha-txt">
+      <b>Sua posição: #{{ eu_pos.posicao }}</b>
+      <span>
+        {{ eu_pos.xp|milhar }} XP {% if periodo == 'semana' %}nesta semana{% elif periodo == 'mes' %}neste mês{% else %}no total{% endif %}
+        · {{ eu_pos.participantes }} {{ 'aluno' if eu_pos.participantes == 1 else 'alunos' }} no ranking
+        {% if eu_pos.posicao == 1 %}· <b>você lidera!</b>{% elif eu_pos.faltam_para_subir %}· faltam <b>{{ eu_pos.faltam_para_subir|milhar }} XP</b> para subir{% endif %}
+      </span>
+    </div>
+    <a class="btn btn-outline btn-sm" href="{{ url_for('aluno.painel') }}">Meu painel</a>
+  </div>
+  {% elif not eu_publico %}
+  <div class="al-minha is-neutra">
+    <span class="al-minha-pos" aria-hidden="true">{{ ico('eye-off') }}</span>
+    <div class="al-minha-txt">
+      <b>Você está oculto no ranking</b>
+      <span>Seu XP continua sendo contado, só não aparece aqui.</span>
+    </div>
+    <a class="btn btn-outline btn-sm" href="{{ url_for('aluno.painel') }}#privacidade">Mudar</a>
+  </div>
+  {% else %}
+  <div class="al-minha is-neutra">
+    <span class="al-minha-pos" aria-hidden="true">—</span>
+    <div class="al-minha-txt">
+      <b>Você ainda não pontuou {% if periodo == 'semana' %}nesta semana{% elif periodo == 'mes' %}neste mês{% else %}por aqui{% endif %}</b>
+      <span>Complete uma missão para entrar no ranking.</span>
+    </div>
+    <a class="btn btn-primary btn-sm" href="{{ url_for('atividades_index') }}">Treinar agora</a>
+  </div>
+  {% endif %}
+
+  {% if podio %}
+  {# ───────── Pódio ───────── #}
+  <section class="al-podio" aria-label="Top 3">
+    {% for i in [1, 2, 3] %}
+    {% set p = podio[i - 1] if podio|length >= i else none %}
+    <article class="al-pod p{{ i }}{{ ' al-lv-' ~ p.nivel_indice if p else ' vazio' }}{{ ' is-eu' if p and p.usuario_id == eu_id else '' }}">
+      <div class="al-pod-topo">
+        {% if i == 1 and p %}{{ ico('crown', 'al-pod-coroa') }}{% endif %}
+        <div class="al-pod-avatar" aria-hidden="true">
+          {{ p.inicial if p else '?' }}
+          {% if p and p.usuario_id == eu_id %}<span class="al-pod-eu">VOCÊ</span>{% endif %}
+        </div>
+        <div class="al-pod-nome">{{ p.nome if p else '—' }}</div>
+        {% if p %}<div class="al-pod-nivel">{{ p.nivel }}</div>{% endif %}
+        <div class="al-pod-xp">{% if p %}{{ p.xp|milhar }} <small>XP</small>{% else %}&nbsp;{% endif %}</div>
+      </div>
+      <div class="al-pod-base"><span class="al-sr">{{ i }}º lugar</span><span aria-hidden="true">{{ i }}</span></div>
+    </article>
+    {% endfor %}
+  </section>
+
+  {# ───────── Tabela 4º em diante ───────── #}
+  {% if resto or (eu_pos and eu_pos.posicao > top) %}
+  <section class="al-card al-tabela-wrap" aria-label="Classificação completa">
+    <table class="al-tabela">
+      <caption class="al-sr">Ranking {{ periodo_rotulo }}, do 4º ao {{ top }}º lugar</caption>
+      <thead>
+        <tr><th scope="col">#</th><th scope="col">Aluno</th><th scope="col" class="col-nivel">Nível</th><th scope="col" class="num">XP</th></tr>
+      </thead>
+      <tbody>
+        {% for r in resto %}
+        <tr class="al-lv-{{ r.nivel_indice }}{{ ' is-eu' if r.usuario_id == eu_id else '' }}"{% if r.usuario_id == eu_id %} aria-current="true"{% endif %}>
+          <td class="al-pos">{{ r.posicao }}</td>
+          <td>
+            <div class="al-aluno">
+              <span class="al-mini-av" aria-hidden="true">{{ r.inicial }}</span>
+              <div class="al-aluno-txt">
+                <b><span>{{ r.nome }}</span>{% if r.usuario_id == eu_id %}<span class="al-voce">VOCÊ</span>{% endif %}</b>
+                <small>{{ r.nivel }}</small>
+              </div>
+            </div>
+          </td>
+          <td class="col-nivel"><span class="al-nivel-chip">{{ r.nivel }}</span></td>
+          <td class="num al-xp-col">{{ r.xp|milhar }} <small>XP</small></td>
+        </tr>
+        {% endfor %}
+        {% if eu_pos and eu_pos.posicao > top %}
+        <tr class="is-gap" aria-hidden="true"><td colspan="4">···</td></tr>
+        <tr class="al-lv-{{ eu_pos.nivel_indice }} is-eu" aria-current="true">
+          <td class="al-pos">{{ eu_pos.posicao }}</td>
+          <td>
+            <div class="al-aluno">
+              <span class="al-mini-av" aria-hidden="true">{{ eu_pos.inicial }}</span>
+              <div class="al-aluno-txt">
+                <b><span>{{ eu_pos.nome }}</span><span class="al-voce">VOCÊ</span></b>
+                <small>{{ eu_pos.nivel }}</small>
+              </div>
+            </div>
+          </td>
+          <td class="col-nivel"><span class="al-nivel-chip">{{ eu_pos.nivel }}</span></td>
+          <td class="num al-xp-col">{{ eu_pos.xp|milhar }} <small>XP</small></td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+  <p class="al-rk-nota">Atualizado a cada minuto · mostrando os {{ top }} primeiros · horário de Brasília</p>
+
+  {% else %}
+  <div class="al-vazio al-rk-vazio">
+    {{ ico('podium') }}
+    <p>Ninguém pontuou {% if periodo == 'semana' %}nesta semana{% elif periodo == 'mes' %}neste mês{% else %}ainda{% endif %}. Seja o primeiro a aparecer no pódio.</p>
+    <a class="btn btn-primary btn-sm" href="{{ url_for('atividades_index') }}">Ir para as atividades</a>
+  </div>
+  {% endif %}
+
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/gamificacao.js') }}"></script>
+{% endblock %}

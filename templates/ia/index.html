@@ -1,8 +1,300 @@
 {% extends "base.html" %}
 {% block title %}Atividades com IA — Allan Dev{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/ia.css') }}">
+{% endblock %}
+
 {% block content %}
-<div class="wrap">
-  <h1>Atividades com IA</h1>
+{% set descricoes_tipo = {
+  'multipla': '4 alternativas, só uma certa',
+  'vf': 'Julgue a afirmação',
+  'aberta': 'Resposta curta, corrigida pela IA',
+  'comando': 'Digite o comando que resolve',
+  'ordenar': 'Coloque os passos em ordem',
+} %}
+{% set limite_estourado = (not uso.ilimitado) and uso.restantes == 0 %}
+
+{% include "ia/_icones.html" %}
+
+<section class="ia-hero">
+  <div class="ia-hero-glow" aria-hidden="true"></div>
+  <div class="wrap ia-hero-grid">
+    <div class="ia-hero-copy">
+      <a class="ia-voltar" href="{{ url_for('atividades_index') }}">
+        <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-arrow-left"/></svg> Atividades
+      </a>
+      <span class="ia-eyebrow"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-sparkles"/></svg> Gerado na hora com IA</span>
+      <h1>Treine qualquer tema com <span class="ia-grad">atividades de IA</span></h1>
+      <p class="ia-hero-sub">
+        Escolha o assunto, o nível e os tipos de questão. A IA monta uma atividade inédita —
+        com resumo teórico, desafios de comando e correção na hora. Todo XP soma no seu perfil.
+      </p>
+      <ul class="ia-hero-pills" role="list">
+        <li><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-misto"/></svg> 5 tipos de questão</li>
+        <li><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-check"/></svg> Correção instantânea</li>
+        <li><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-bolt"/></svg> XP no seu perfil</li>
+      </ul>
+    </div>
+
+    <div class="ia-hero-term" aria-hidden="true">
+      <div class="ia-term-bar"><i></i><i></i><i></i><span>gerador-ia</span></div>
+      <div class="ia-hero-term-body">
+        <p><b>$</b> ia gerar <em>--tema</em> "Privilege Escalation Linux" <em>--nivel</em> avancado</p>
+        <p class="d">› consultando a IA…</p>
+        <p class="d">› 8 questões · resumo teórico · gabarito validado</p>
+        <p class="ok">✔ atividade pronta <span class="ia-caret"></span></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap ia-page">
+
+  <section class="ia-stats" aria-label="Seus números com IA">
+    <div class="ia-stat">
+      <span class="ia-stat-ico ia-c-info"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-cpu"/></svg></span>
+      <span class="ia-stat-val">{{ stats.total }}</span>
+      <span class="ia-stat-lbl">Atividades geradas</span>
+    </div>
+    <div class="ia-stat">
+      <span class="ia-stat-ico ia-c-accent"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-bolt"/></svg></span>
+      <span class="ia-stat-val">{{ stats.xp }}</span>
+      <span class="ia-stat-lbl">XP com IA</span>
+    </div>
+    <div class="ia-stat">
+      <span class="ia-stat-ico ia-c-purple"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-chart"/></svg></span>
+      <span class="ia-stat-val">{% if stats.media is not none %}{{ stats.media }}<small>%</small>{% else %}—{% endif %}</span>
+      <span class="ia-stat-lbl">Média de acerto</span>
+    </div>
+    <div class="ia-stat ia-stat-uso {{ 'is-cheio' if limite_estourado else '' }}">
+      <span class="ia-stat-ico ia-c-warn"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-gauge"/></svg></span>
+      {% if uso.ilimitado %}
+        <span class="ia-stat-val">{{ uso.hoje }}</span>
+        <span class="ia-stat-lbl">Gerações hoje · sem limite</span>
+      {% else %}
+        <span class="ia-stat-val">{{ uso.hoje }}<small>/{{ uso.limite }}</small></span>
+        <span class="ia-stat-lbl">Gerações hoje</span>
+        <span class="ia-meter" role="progressbar" aria-label="Uso do limite diário" aria-valuemin="0" aria-valuemax="{{ uso.limite }}" aria-valuenow="{{ uso.hoje }}">
+          <span style="width: {{ uso.pct }}%"></span>
+        </span>
+      {% endif %}
+    </div>
+  </section>
+
+  {% if not status.configurada %}
+  <section class="ia-aviso" role="note" aria-labelledby="iaAvisoTitulo">
+    <span class="ia-aviso-ico"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-key"/></svg></span>
+    <div class="ia-aviso-txt">
+      <h2 id="iaAvisoTitulo">A IA ainda não foi ligada neste servidor</h2>
+      <p>Para gerar atividades, o administrador precisa configurar uma chave da <strong>OpenRouter</strong>. Leva 2 minutos:</p>
+      <ol>
+        <li>Crie uma chave em <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">openrouter.ai/keys</a> (e adicione créditos).</li>
+        <li>No <strong>Square Cloud</strong>, abra a aplicação → <em>Configurações</em> → <em>Variáveis de ambiente</em>.</li>
+        <li>Crie <code>OPENROUTER_API_KEY</code> com a chave e reinicie a aplicação.</li>
+      </ol>
+      <p class="ia-aviso-mini">Enquanto isso, suas atividades antigas continuam disponíveis no histórico.</p>
+    </div>
+  </section>
+  {% elif status.mock %}
+  <section class="ia-aviso ia-aviso-demo" role="note">
+    <span class="ia-aviso-ico"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-play"/></svg></span>
+    <div class="ia-aviso-txt">
+      <h2>Modo demonstração</h2>
+      <p>O servidor está com <code>IA_MOCK=1</code>: as atividades são de exemplo e não usam créditos. Configure <code>OPENROUTER_API_KEY</code> e remova <code>IA_MOCK</code> para gerar conteúdo de verdade.</p>
+    </div>
+  </section>
+  {% endif %}
+
+  <div class="ia-layout">
+    <form class="ia-card ia-form" id="iaForm" novalidate
+          data-url="{{ url_for('ia.gerar') }}"
+          aria-describedby="iaFormSub">
+      <header class="ia-form-head">
+        <span class="ia-form-kicker">Nova atividade</span>
+        <h2>Monte seu treino</h2>
+        <p id="iaFormSub">Quanto mais específico o tema, melhor a atividade.</p>
+      </header>
+
+      <div class="ia-campo">
+        <label class="ia-label" for="iaTema">
+          <span class="ia-step">1</span> Sobre o que você quer treinar?
+        </label>
+        <div class="ia-input-tema">
+          <span class="ia-input-prefix" aria-hidden="true">$</span>
+          <input id="iaTema" name="tema" type="text" maxlength="{{ tema_max }}" required autocomplete="off"
+                 placeholder="ex.: SQL Injection em formulários de login"
+                 value="{{ tema_inicial }}" aria-describedby="iaTemaCount">
+          <span class="ia-count" id="iaTemaCount" aria-live="polite">{{ tema_inicial|length }}/{{ tema_max }}</span>
+        </div>
+        <div class="ia-chips" role="group" aria-label="Sugestões de tema">
+          {% for s in sugestoes %}
+          <button type="button" class="ia-chip" data-tema="{{ s }}">{{ s }}</button>
+          {% endfor %}
+        </div>
+      </div>
+
+      <fieldset class="ia-campo">
+        <legend class="ia-label"><span class="ia-step">2</span> Nível</legend>
+        <div class="ia-seg ia-seg-3">
+          {% for n in niveis %}
+          <label class="ia-seg-opt">
+            <input type="radio" name="nivel" value="{{ n }}" {{ 'checked' if n == nivel_inicial else '' }}>
+            <span class="ia-seg-box">
+              <span class="ia-bars ia-bars-{{ loop.index }}" aria-hidden="true"><i></i><i></i><i></i></span>
+              <strong>{{ n }}</strong>
+              <small>{{ ['Fundamentos e conceitos', 'Ferramentas e cenários', 'Técnicas e edge cases'][loop.index0] }}</small>
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+      </fieldset>
+
+      <div class="ia-campo-dupla">
+        <fieldset class="ia-campo">
+          <legend class="ia-label"><span class="ia-step">3</span> Quantidade</legend>
+          <div class="ia-seg ia-seg-qtd">
+            {% for q in quantidades %}
+            <label class="ia-seg-opt">
+              <input type="radio" name="quantidade" value="{{ q }}" {{ 'checked' if q == 8 else '' }}>
+              <span class="ia-seg-box ia-seg-num"><strong>{{ q }}</strong><small>~{{ (q * 1.3)|round|int }} min</small></span>
+            </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+
+        <fieldset class="ia-campo">
+          <legend class="ia-label"><span class="ia-step">4</span> Foco</legend>
+          <div class="ia-seg ia-seg-foco">
+            {% for valor, rotulo, icone in [('teoria', 'Teoria', 'teoria'), ('pratica', 'Prática', 'pratica'), ('misto', 'Misto', 'misto')] %}
+            <label class="ia-seg-opt">
+              <input type="radio" name="foco" value="{{ valor }}" {{ 'checked' if valor == 'misto' else '' }}>
+              <span class="ia-seg-box ia-seg-ico">
+                <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-{{ icone }}"/></svg>
+                <strong>{{ rotulo }}</strong>
+              </span>
+            </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+      </div>
+
+      <fieldset class="ia-campo">
+        <legend class="ia-label"><span class="ia-step">5</span> Tipos de questão</legend>
+        <div class="ia-tipos">
+          {% for chave, nome in tipos.items() %}
+          <label class="ia-tipo ia-tipo-{{ chave }}">
+            <input type="checkbox" name="tipos" value="{{ chave }}" checked>
+            <span class="ia-tipo-box">
+              <span class="ia-tipo-ico"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-{{ chave }}"/></svg></span>
+              <span class="ia-tipo-txt"><strong>{{ nome }}</strong><small>{{ descricoes_tipo[chave] }}</small></span>
+              <span class="ia-tipo-check" aria-hidden="true"><svg class="ia-ico"><use href="#ia-i-check"/></svg></span>
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+      </fieldset>
+
+      <div class="ia-form-foot">
+        <div class="ia-erro" id="iaErro" role="alert" hidden></div>
+        <button type="submit" class="btn btn-primary btn-lg ia-btn-gerar" id="iaGerar"
+                {{ 'disabled' if (not status.configurada or limite_estourado) else '' }}>
+          <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-sparkles"/></svg>
+          <span>Gerar atividade</span>
+        </button>
+        <p class="ia-form-nota">
+          {% if not status.configurada %}
+            Geração indisponível até a chave ser configurada.
+          {% elif limite_estourado %}
+            Você usou as {{ uso.limite }} gerações de hoje. O limite zera à meia-noite.
+          {% elif uso.ilimitado %}
+            Sem limite diário neste servidor.
+          {% else %}
+            Restam <strong>{{ uso.restantes }}</strong> de {{ uso.limite }} gerações hoje.
+          {% endif %}
+        </p>
+      </div>
+    </form>
+
+    <aside class="ia-side">
+      <section class="ia-card ia-hist" aria-labelledby="iaHistTitulo">
+        <header class="ia-hist-head">
+          <h2 id="iaHistTitulo"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-history"/></svg> Seu histórico</h2>
+          <span class="ia-hist-count" id="iaHistCount">{{ atividades|length }}</span>
+        </header>
+
+        {% if atividades %}
+        <ul class="ia-hist-list" id="iaHistList" role="list">
+          {% for a in atividades %}
+          {% set pct = ((a.respondidas / a.quantidade * 100)|round|int) if a.quantidade else 0 %}
+          <li class="ia-hist-item {{ 'is-ok' if a.concluida else '' }}" data-id="{{ a.id }}">
+            <a class="ia-hist-link" href="{{ url_for('ia.ver', atividade_id=a.id) }}">
+              <span class="ia-hist-ico" aria-hidden="true">
+                {% if a.concluida %}
+                  <svg class="ia-ico"><use href="#ia-i-check"/></svg>
+                {% else %}
+                  <svg class="ia-ring" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15"/><circle cx="18" cy="18" r="15" class="v" style="stroke-dashoffset: {{ (94.25 * (1 - pct / 100))|round(2) }}"/></svg>
+                {% endif %}
+              </span>
+              <span class="ia-hist-txt">
+                <strong>{{ a.titulo or a.tema }}</strong>
+                <small>{{ a.tema }} · {{ a.nivel }} · {{ a.criado_em|ia_data }}</small>
+              </span>
+              <span class="ia-hist-meta">
+                {% if a.concluida %}
+                  <b class="ia-nota {{ 'is-alta' if a.nota >= 70 else ('is-media' if a.nota >= 40 else 'is-baixa') }}">{{ a.nota }}%</b>
+                {% else %}
+                  <b>{{ a.respondidas }}/{{ a.quantidade }}</b>
+                {% endif %}
+                <small>{{ a.xp_ganho }} XP</small>
+              </span>
+            </a>
+            <div class="ia-hist-acoes">
+              {% if a.concluida %}
+                <span class="ia-badge ia-badge-ok">Concluída</span>
+              {% elif a.respondidas %}
+                <span class="ia-badge ia-badge-info">Em andamento</span>
+              {% else %}
+                <span class="ia-badge">Nova</span>
+              {% endif %}
+              <span class="ia-hist-sp"></span>
+              <button type="button" class="ia-icon-btn" data-acao="refazer"
+                      data-url="{{ url_for('ia.refazer', atividade_id=a.id) }}"
+                      aria-label="Refazer “{{ a.titulo or a.tema }}”" title="Refazer">
+                <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-refresh"/></svg>
+              </button>
+              <button type="button" class="ia-icon-btn ia-icon-danger" data-acao="excluir"
+                      data-url="{{ url_for('ia.excluir', atividade_id=a.id) }}"
+                      aria-label="Excluir “{{ a.titulo or a.tema }}”" title="Excluir">
+                <svg class="ia-ico" aria-hidden="true"><use href="#ia-i-trash"/></svg>
+              </button>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        <div class="ia-vazio" id="iaHistVazio" {{ 'hidden' if atividades else '' }}>
+          <span class="ia-vazio-ico"><svg class="ia-ico" aria-hidden="true"><use href="#ia-i-sparkles"/></svg></span>
+          <p>Nenhuma atividade ainda.</p>
+          <small>Escolha um tema ao lado — a primeira fica pronta em menos de um minuto.</small>
+        </div>
+      </section>
+
+      <section class="ia-card ia-como" aria-labelledby="iaComoTitulo">
+        <h2 id="iaComoTitulo">Como funciona</h2>
+        <ol class="ia-como-lista" role="list">
+          <li><span>1</span><div><strong>A IA monta a atividade</strong><small>Resumo teórico + questões sob medida para o seu tema.</small></div></li>
+          <li><span>2</span><div><strong>Você responde</strong><small>Correção na hora, com explicação. Dica custa metade do XP.</small></div></li>
+          <li><span>3</span><div><strong>Ganha XP e revisa</strong><small>Nota final, revisão dos erros e um botão para subir de nível.</small></div></li>
+        </ol>
+      </section>
+    </aside>
+  </div>
 </div>
+
+{% include "ia/_loading.html" %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/ia.js') }}"></script>
 {% endblock %}

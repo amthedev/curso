@@ -22,6 +22,7 @@ import logging
 import re
 import sqlite3
 import threading
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 from flask import Blueprint, abort, jsonify, render_template, request, session, url_for
@@ -192,6 +193,24 @@ def ia_configurada() -> bool:
 @bp.app_context_processor
 def _ctx_ia():
     return {"ia_disponivel": ia.ia_configurada()}
+
+
+@bp.app_template_filter("ia_data")
+def ia_data(criado_em) -> str:
+    """'2026-10-05 17:30:00' (UTC) → 'hoje, 14:30' / 'ontem, 09:10' / '3 out, 14:30' (Brasília)."""
+    try:
+        d = datetime.strptime(str(criado_em)[:19], "%Y-%m-%d %H:%M:%S") - timedelta(hours=3)
+    except ValueError:
+        return str(criado_em or "")
+    hoje = (datetime.now(timezone.utc) - timedelta(hours=3)).date()
+    hora = d.strftime("%H:%M")
+    if d.date() == hoje:
+        return f"hoje, {hora}"
+    if d.date() == hoje - timedelta(days=1):
+        return f"ontem, {hora}"
+    meses = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
+    ano = f" {d.year}" if d.year != hoje.year else ""
+    return f"{d.day} {meses[d.month - 1]}{ano}, {hora}"
 
 
 @bp.app_template_filter("ia_inline")
@@ -415,7 +434,7 @@ def ver(atividade_id):
             "tema": row["tema"],
             "nivel": row["nivel"],
             "foco": row["foco"],
-            "quantidade": row["quantidade"],
+            "quantidade": atividade.get("quantidade_pedida") or row["quantidade"],
             "tipos": json.loads(row["tipos"] or "[]"),
             "base_id": row["id"],
         },
@@ -504,6 +523,7 @@ def gerar():
             return _erro("Erro inesperado ao gerar a atividade. Tente novamente.", 500, "interno")
 
         atividade = resultado["atividade"]
+        atividade["quantidade_pedida"] = quantidade
         cur = db.execute(
             "INSERT INTO ia_atividades (usuario_id, tema, nivel, foco, tipos, quantidade, titulo, json, "
             "modelo, xp_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",

@@ -59,6 +59,7 @@ def painel():
     return render_template(
         "aluno/painel.html",
         nome=usuario["nome"],
+        nome_ranking=gami.nome_publico(usuario["nome"]),
         inicial=(usuario["nome"] or "?").strip()[:1].upper() or "?",
         st=st,
         nivel=st["nivel"],

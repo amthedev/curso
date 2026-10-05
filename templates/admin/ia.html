@@ -1,0 +1,175 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}IA — Admin{% endblock %}
+{% block heading %}Atividades com IA{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Específico desta página (tokens de style.css) */
+  .aia-status { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: center; margin-bottom: 22px; }
+  .aia-status-ico { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 16px; font-size: 1.6rem;
+    color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); }
+  .aia-status h2 { margin: 0 0 4px; font-size: 1.15rem; }
+  .aia-status p { margin: 0; color: var(--text-2); font-size: .88rem; }
+  .aia-status code, .aia-cfg code { font-family: var(--mono); font-size: .8rem; padding: 2px 7px; border-radius: 6px; background: var(--bg-3); border: 1px solid var(--border); color: var(--accent); overflow-wrap: anywhere; }
+  .aia-cfg { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .aia-cfg li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--border); font-size: .88rem; flex-wrap: wrap; }
+  .aia-cfg li:last-child { border-bottom: 0; }
+  .aia-cfg span { color: var(--text-2); }
+  .aia-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: .74rem; font-weight: 700; }
+  .aia-ok { color: var(--accent); background: var(--accent-dim); }
+  .aia-no { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+  .aia-demo { color: var(--info); background: color-mix(in srgb, var(--info) 12%, transparent); }
+  .aia-temas { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .aia-temas li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; font-size: .88rem; }
+  .aia-temas strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+  .aia-temas b { font-family: var(--mono); color: var(--text-2); font-size: .82rem; }
+  .aia-bar { grid-column: 1 / -1; height: 6px; border-radius: 999px; background: var(--bg-3); overflow: hidden; }
+  .aia-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--info)); }
+  .aia-nota { font-family: var(--mono); font-weight: 700; }
+  .aia-nota.alta { color: var(--accent); } .aia-nota.media { color: var(--warn); } .aia-nota.baixa { color: var(--danger); }
+  .aia-erros { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .aia-erros li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border-radius: var(--r);
+    background: color-mix(in srgb, var(--danger) 7%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent); font-size: .84rem; }
+  .aia-erros code { font-family: var(--mono); color: var(--danger); }
+  .aia-erros small { color: var(--text-3); font-family: var(--mono); }
+  .aia-mini { color: var(--text-3); font-size: .78rem; }
+  @media (max-width: 720px) { .aia-status { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block admin_content %}
+{% set cor = 'var(--accent)' if status.chave else ('var(--info)' if status.mock else 'var(--danger)') %}
+<section class="admin-panel aia-status" style="--c: {{ cor }}">
+  <span class="aia-status-ico"><svg class="ic"><use href="#{{ 'a-ok' if status.configurada else 'a-bad' }}"/></svg></span>
+  <div>
+    {% if status.chave %}
+      <h2>IA configurada e ativa</h2>
+      <p>A chave <code>OPENROUTER_API_KEY</code> está definida{% if status.mock %} — mas <code>IA_MOCK=1</code> também está ligado, então as gerações são de demonstração{% endif %}.</p>
+    {% elif status.mock %}
+      <h2>Modo demonstração (sem chave)</h2>
+      <p><code>IA_MOCK=1</code> está ativo: as atividades são fictícias e não consomem créditos. Defina <code>OPENROUTER_API_KEY</code> e remova <code>IA_MOCK</code> para usar a IA de verdade.</p>
+    {% else %}
+      <h2>IA não configurada</h2>
+      <p>Os alunos veem um aviso no lugar do gerador. No Square Cloud: aplicação → Configurações → Variáveis de ambiente → crie <code>OPENROUTER_API_KEY</code> (chave em openrouter.ai/keys) e reinicie.</p>
+    {% endif %}
+  </div>
+</section>
+
+<div class="stat-grid">
+  <div class="stat-card" style="--c: var(--accent)">
+    <span class="stat-ico"><svg class="ic"><use href="#a-ai"/></svg></span>
+    <span class="stat-value">{{ numeros.geracoes_total }}</span>
+    <span class="stat-label">Gerações no total</span>
+  </div>
+  <div class="stat-card" style="--c: var(--info)">
+    <span class="stat-ico"><svg class="ic"><use href="#a-cal"/></svg></span>
+    <span class="stat-value">{{ numeros.geracoes_hoje }}</span>
+    <span class="stat-label">Gerações hoje{% if numeros.falhas_hoje %} · {{ numeros.falhas_hoje }} falha{{ 's' if numeros.falhas_hoje != 1 else '' }}{% endif %}</span>
+  </div>
+  <div class="stat-card" style="--c: var(--purple)">
+    <span class="stat-ico"><svg class="ic"><use href="#a-users"/></svg></span>
+    <span class="stat-value">{{ numeros.usuarios_ativos }}</span>
+    <span class="stat-label">Alunos que já geraram</span>
+  </div>
+  <div class="stat-card" style="--c: var(--warn)">
+    <span class="stat-ico"><svg class="ic"><use href="#a-zap"/></svg></span>
+    <span class="stat-value">{{ numeros.media_nota|int if numeros.media_nota is not none else '—' }}{% if numeros.media_nota is not none %}<small style="font-size:1rem">%</small>{% endif %}</span>
+    <span class="stat-label">Nota média · {{ numeros.concluidas }}/{{ numeros.atividades }} concluídas</span>
+  </div>
+</div>
+
+<div class="admin-grid-2">
+  <section class="admin-panel">
+    <div class="admin-panel-head">
+      <h2><svg class="ic"><use href="#a-layers"/></svg> Configuração</h2>
+      <span class="aia-mini">lida das variáveis de ambiente</span>
+    </div>
+    <ul class="aia-cfg">
+      <li><span>OPENROUTER_API_KEY</span>
+        {% if status.chave %}<em class="aia-pill aia-ok">definida</em>{% else %}<em class="aia-pill aia-no">ausente</em>{% endif %}</li>
+      <li><span>Modo demo (IA_MOCK)</span>
+        {% if status.mock %}<em class="aia-pill aia-demo">ligado</em>{% else %}<em class="aia-pill aia-ok">desligado</em>{% endif %}</li>
+      <li><span>Modelo de geração</span><code>{{ status.modelo }}</code></li>
+      <li><span>Modelo rápido (correção/dicas)</span><code>{{ status.modelo_rapido }}</code></li>
+      <li><span>Fallbacks</span>{% if status.fallbacks %}<code>{{ status.fallbacks|join(', ') }}</code>{% else %}<span class="aia-mini">nenhum</span>{% endif %}</li>
+      <li><span>Limite por aluno/dia</span><code>{{ status.limite_diario if status.limite_diario > 0 else 'sem limite' }}</code></li>
+      <li><span>Correções abertas por IA</span><code>{{ numeros.correcoes_total }}</code></li>
+      <li><span>Tokens consumidos</span><code>{{ '{:,}'.format(numeros.tokens_total).replace(',', '.') }}</code></li>
+      <li><span>Tempo médio de geração</span><code>{{ numeros.tempo_medio ~ ' s' if numeros.tempo_medio is not none else '—' }}</code></li>
+    </ul>
+  </section>
+
+  <section class="admin-panel">
+    <div class="admin-panel-head">
+      <h2><svg class="ic"><use href="#a-tag"/></svg> Temas mais pedidos</h2>
+    </div>
+    {% if top_temas %}
+    {% set maior = top_temas[0].total %}
+    <ol class="aia-temas">
+      {% for t in top_temas %}
+      <li>
+        <strong title="{{ t.tema }}">{{ t.tema }}</strong><b>{{ t.total }}</b>
+        <span class="aia-bar"><i style="width: {{ (t.total / maior * 100)|round|int }}%"></i></span>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <div class="admin-empty admin-empty-sm">
+      <span class="admin-empty-ico"><svg class="ic"><use href="#a-tag"/></svg></span>
+      <strong>Nenhuma geração ainda</strong>
+      <p>Os temas aparecem aqui quando os alunos começarem a gerar atividades.</p>
+    </div>
+    {% endif %}
+
+    {% if erros %}
+    <div class="admin-panel-head" style="margin-top: 22px">
+      <h2><svg class="ic"><use href="#a-alert"/></svg> Falhas recentes</h2>
+    </div>
+    <ul class="aia-erros">
+      {% for e in erros %}
+      <li><span>{{ e.tipo }} · <code>{{ e.erro or 'erro' }}</code> × {{ e.total }}</span><small>{{ e.ultimo|ia_data }}</small></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+</div>
+
+<section class="admin-panel admin-panel-flush">
+  <div class="admin-panel-head" style="padding: 20px 22px 0">
+    <h2><svg class="ic"><use href="#a-activity"/></svg> Últimas 20 atividades</h2>
+    <span class="aia-mini">{{ numeros.atividades }} no total</span>
+  </div>
+  {% if ultimas %}
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr><th>Aluno</th><th>Tema</th><th>Nível</th><th>Nota</th><th>XP</th><th>Modelo</th><th>Quando</th></tr>
+      </thead>
+      <tbody>
+        {% for a in ultimas %}
+        <tr>
+          <td><div class="admin-table-title">{{ a.nome }}</div><div class="admin-table-sub">{{ a.email }}</div></td>
+          <td><div class="admin-table-title">{{ a.tema }}</div><div class="admin-table-sub">{{ a.titulo }}</div></td>
+          <td><span class="admin-lvl admin-lvl-{{ a.nivel|lower }}">{{ a.nivel }}</span></td>
+          <td>
+            {% if a.concluida %}
+              <span class="aia-nota {{ 'alta' if a.nota >= 70 else ('media' if a.nota >= 40 else 'baixa') }}">{{ a.nota }}%</span>
+            {% else %}<span class="muted-cell">em andamento</span>{% endif %}
+          </td>
+          <td class="muted-cell">{{ a.xp_ganho }}/{{ a.xp_total }}</td>
+          <td class="muted-cell"><code style="font-family: var(--mono); font-size: .76rem">{{ a.modelo }}</code></td>
+          <td class="muted-cell">{{ a.criado_em|ia_data }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="admin-empty">
+    <span class="admin-empty-ico"><svg class="ic"><use href="#a-ai"/></svg></span>
+    <strong>Nenhuma atividade gerada</strong>
+    <p>Quando um aluno gerar uma atividade em /atividades/ia, ela aparece aqui.</p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

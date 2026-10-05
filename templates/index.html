@@ -1,150 +1,252 @@
 {% extends "base.html" %}
-{% block title %}Allan Dev — Security Research & Pentest{% endblock %}
+{% from "_ui.html" import ico, cat_ico, cat_key, nivel, post_card %}
+{% block title %}Allan Dev — Linux, Redes, Python e Segurança na prática{% endblock %}
 
 {% block content %}
-<!-- HERO -->
+{% set filtrando = categoria_ativa or busca %}
+
+{# Minutos totais de leitura (só faz sentido na home sem filtro: destaque + posts = todos). #}
+{% set tot = namespace(min=0) %}
+{% for p in posts %}{% set tot.min = tot.min + (p.corpo | tempo_leitura) %}{% endfor %}
+{% if destaque %}{% set tot.min = tot.min + (destaque.corpo | tempo_leitura) %}{% endif %}
+
+{% if not filtrando %}
+<!-- ───────────────────────── HERO ───────────────────────── -->
 <section class="hero">
-  <div class="wrap">
-    <span class="hero-eyebrow">Security Research</span>
-    <h1>Domine o<br>lado ofensivo.</h1>
-    <p class="hero-sub">Pentest, CTF, red team, exploits e automação. Conteúdo técnico escrito por quem executa — não só por quem fala.</p>
+  <div class="hero-bg" aria-hidden="true">
+    <span class="hero-orb o1"></span>
+    <span class="hero-orb o2"></span>
+    <span class="hero-orb o3"></span>
+  </div>
 
-    <form class="search-form" method="get" action="{{ url_for('index') }}">
-      <input type="text" name="q" placeholder="Buscar: nmap, sql injection, buffer overflow..." value="{{ busca }}">
-      <button type="submit">Buscar</button>
-    </form>
+  <div class="wrap hero-inner">
+    <div class="hero-copy">
+      <span class="hero-eyebrow">Security Research &middot; Educacional</span>
+      <h1>Domine segurança, redes e Linux <span class="grad-text">na prática.</span></h1>
+      <p class="hero-sub">Guias técnicos escritos por quem executa, laboratórios no terminal e atividades geradas por IA. Aprenda fazendo — sempre em ambiente controlado.</p>
 
-    <div class="hero-stats">
-      <div class="hero-stat">
-        <strong>{{ total_posts }}</strong>
-        <span>Posts</span>
+      <div class="hero-cta">
+        <a href="{{ url_for('atividades_index') }}" class="btn btn-primary btn-lg">{{ ico('target') }} Começar atividades</a>
+        <a href="{{ url_for('ia.index') }}" class="btn btn-ai btn-lg">{{ ico('sparkles') }} Gerar atividade com IA</a>
       </div>
-      <div class="hero-stat">
-        <strong>{{ categorias|length }}</strong>
-        <span>Categorias</span>
+
+      <form class="hero-search" method="get" action="{{ url_for('index') }}" role="search">
+        {{ ico('search') }}
+        <input type="search" name="q" placeholder="Buscar: nmap, sql injection, permissões…" value="{{ busca }}" aria-label="Buscar posts" autocomplete="off" data-search>
+        <kbd class="kbd" aria-hidden="true">/</kbd>
+        <button type="submit" class="btn btn-primary btn-sm">Buscar</button>
+      </form>
+
+      <dl class="hero-stats">
+        <div class="hero-stat">
+          <dt>Posts</dt>
+          <dd><strong data-count="{{ total_posts }}">{{ total_posts }}</strong></dd>
+        </div>
+        <div class="hero-stat">
+          <dt>Categorias</dt>
+          <dd><strong data-count="{{ categorias|length }}">{{ categorias|length }}</strong></dd>
+        </div>
+        <div class="hero-stat">
+          <dt>Min de leitura</dt>
+          <dd><strong data-count="{{ tot.min }}">{{ tot.min }}</strong></dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="hero-visual" aria-hidden="true">
+      <div class="tx" data-typing>
+        <div class="tx-bar">
+          <span class="tx-dots"><i></i><i></i><i></i></span>
+          <span class="tx-title">allan@lab: ~/recon</span>
+          <span class="tx-tag">lab</span>
+        </div>
+        <div class="tx-body">
+          <div class="tx-line" data-cmd><span class="tx-prompt">$</span><span class="tx-cmd">nmap -sV -p 22,80,443 alvo.lab</span></div>
+          <div class="tx-line tx-out"><span class="tx-dim">Starting Nmap 7.94 ( https://nmap.org )</span></div>
+          <div class="tx-line tx-out">22/tcp&nbsp;&nbsp;<span class="tx-ok">open</span>&nbsp;&nbsp;ssh&nbsp;&nbsp;&nbsp;&nbsp;OpenSSH 8.9</div>
+          <div class="tx-line tx-out">80/tcp&nbsp;&nbsp;<span class="tx-ok">open</span>&nbsp;&nbsp;http&nbsp;&nbsp;&nbsp;nginx 1.24</div>
+          <div class="tx-line tx-out">443/tcp <span class="tx-warn">filtered</span> https</div>
+          <div class="tx-line" data-cmd><span class="tx-prompt">$</span><span class="tx-cmd">python3 recon.py --passivo</span></div>
+          <div class="tx-line tx-out"><span class="tx-ok">[+]</span> 14 subdomínios encontrados</div>
+          <div class="tx-line tx-out"><span class="tx-ok">[+]</span> escopo autorizado &mdash; só laboratório</div>
+          <div class="tx-line" data-cmd><span class="tx-prompt">$</span><span class="tx-cmd"></span></div>
+        </div>
       </div>
-      <div class="hero-stat">
-        <strong>100%</strong>
-        <span>Ofensivo</span>
+
+      <div class="float-card fc-xp">
+        <span class="fc-ico">{{ ico('trending') }}</span>
+        <div><strong>+30 XP</strong><small>missão concluída</small></div>
+      </div>
+      <div class="float-card fc-ia">
+        <span class="fc-ico">{{ ico('sparkles') }}</span>
+        <div><strong>Atividade gerada</strong><small>Redes &middot; Iniciante</small></div>
       </div>
     </div>
   </div>
 </section>
+{% else %}
+<!-- ───────────────────── RESULTADOS (compacto) ───────────────────── -->
+<section class="page-hero">
+  <div class="wrap">
+    <span class="page-hero-eyebrow">{% if categoria_ativa and not busca %}Categoria{% else %}Resultados da busca{% endif %}</span>
+    <h1>
+      {% if busca %}&ldquo;{{ busca }}&rdquo;{% if categoria_ativa %} <span class="grad-text">em {{ categoria_ativa }}</span>{% endif %}
+      {% else %}<span class="grad-text">{{ categoria_ativa }}</span>{% endif %}
+    </h1>
+    <p class="page-hero-sub">{{ total_posts }} post{{ 's' if total_posts != 1 else '' }} encontrado{{ 's' if total_posts != 1 else '' }}.</p>
+    <form class="hero-search hero-search-compact" method="get" action="{{ url_for('index') }}" role="search">
+      {{ ico('search') }}
+      {% if categoria_ativa %}<input type="hidden" name="categoria" value="{{ categoria_ativa }}">{% endif %}
+      <input type="search" name="q" placeholder="Refinar busca…" value="{{ busca }}" aria-label="Buscar posts" autocomplete="off" data-search>
+      <kbd class="kbd" aria-hidden="true">/</kbd>
+      <button type="submit" class="btn btn-primary btn-sm">Buscar</button>
+      <a href="{{ url_for('index') }}" class="btn btn-outline btn-sm limpar-filtro">{{ ico('x') }} Limpar</a>
+    </form>
+  </div>
+</section>
+{% endif %}
 
-<!-- MAIN GRID -->
+<!-- ───────────────────────── CONTEÚDO ───────────────────────── -->
 <div class="main-grid">
   <div class="content-col">
 
-    {% if categoria_ativa or busca %}
-      <div class="filtro-ativo">
-        <span>
-          {% if busca %}Resultados para &ldquo;<strong>{{ busca }}</strong>&rdquo;{% endif %}
-          {% if categoria_ativa %}{% if busca %} em{% endif %} categoria <strong>{{ categoria_ativa }}</strong>{% endif %}
-          &nbsp;&mdash; {{ total_posts }} post{{ 's' if total_posts != 1 else '' }}
-        </span>
-        <a href="{{ url_for('index') }}" class="limpar-filtro">Limpar ✕</a>
-      </div>
-    {% endif %}
+    <!-- Categorias (atalho rápido no mobile) -->
+    <div class="cat-strip" role="navigation" aria-label="Filtrar por categoria">
+      <a href="{{ url_for('index') }}" class="cat-pill {{ 'active' if not categoria_ativa else '' }}">Todos</a>
+      {% for c in categorias %}
+      <a href="{{ url_for('index', categoria=c.categoria) }}" class="cat-pill cat-{{ c.categoria|lower|replace(' ', '') }} {{ 'active' if categoria_ativa == c.categoria else '' }}">
+        <i class="dd-dot" aria-hidden="true"></i>{{ c.categoria }}<small>{{ c.total }}</small>
+      </a>
+      {% endfor %}
+    </div>
 
     {% if destaque %}
-      <a href="{{ url_for('post_detalhe', slug=destaque.slug) }}" class="post-destaque">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-          <span class="tag-categoria cat-{{ destaque.categoria|lower|replace(' ','') }}">{{ destaque.categoria }}</span>
-          {% if destaque.nivel %}
-            <span class="nivel-badge nivel-{{ destaque.nivel|lower }}">{{ destaque.nivel }}</span>
-          {% endif %}
+    {% set dk = destaque.categoria|lower|replace(' ', '') %}
+    <a href="{{ url_for('post_detalhe', slug=destaque.slug) }}" class="post-destaque cat-{{ dk }}">
+      <div class="pd-body">
+        <div class="pd-top">
+          <span class="badge badge-accent">{{ ico('star') }} Em destaque</span>
+          <span class="tag-categoria">{{ destaque.categoria }}</span>
+          {{ nivel(destaque.nivel) }}
         </div>
         <h2>{{ destaque.titulo }}</h2>
         <p>{{ destaque.resumo }}</p>
         <div class="post-meta">
-          <span class="avatar avatar-sm">AD</span>
+          <span class="avatar avatar-sm">{{ (destaque.autor.split()|map('first')|join(''))[:2]|upper }}</span>
           <span>{{ destaque.autor }}</span>
           <span class="post-meta-dot">&middot;</span>
           <span>{{ destaque.data_publicacao | data_br }}</span>
           <span class="post-meta-dot">&middot;</span>
-          <span>{{ destaque.corpo | tempo_leitura }} min</span>
-          <span class="post-meta-dot">&middot;</span>
-          <span style="color:var(--accent);font-weight:600">Destaque &rarr;</span>
+          <span>{{ destaque.corpo | tempo_leitura }} min de leitura</span>
         </div>
-      </a>
+        <span class="pd-cta">Ler artigo {{ ico('arrow-right') }}</span>
+      </div>
+      <div class="pd-visual" aria-hidden="true">
+        {{ cat_ico(destaque.categoria, 'pd-ico') }}
+        <span class="pd-code">
+          <i>01</i> <b>$</b> {% if dk == 'pentest' %}nmap -sV alvo.lab{% elif dk == 'linux' %}chmod 640 chave.pem{% elif dk == 'redes' %}tcpdump -i eth0 port 443{% elif dk == 'python' %}import socket{% else %}cat /etc/os-release{% endif %}<br>
+          <i>02</i> <em>&rarr; ok</em>
+        </span>
+      </div>
+    </a>
     {% endif %}
 
     {% if posts %}
+      <div class="section-head">
+        <h2>{% if filtrando %}Posts encontrados{% else %}Mais recentes{% endif %}</h2>
+        <span class="badge">{{ posts|length }} post{{ 's' if posts|length != 1 else '' }}</span>
+      </div>
       <div class="post-grid">
-        {% for post in posts %}
-        <a href="{{ url_for('post_detalhe', slug=post.slug) }}" class="post-card">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-            <span class="tag-categoria cat-{{ post.categoria|lower|replace(' ','') }}">{{ post.categoria }}</span>
-            {% if post.nivel %}
-              <span class="nivel-badge nivel-{{ post.nivel|lower }}">{{ post.nivel }}</span>
-            {% endif %}
-          </div>
-          <h3>{{ post.titulo }}</h3>
-          <p>{{ post.resumo }}</p>
-          <div class="post-meta">
-            <span>{{ post.data_publicacao | data_br }}</span>
-            <span class="post-meta-dot">&middot;</span>
-            <span>{{ post.corpo | tempo_leitura }} min</span>
-          </div>
-        </a>
-        {% endfor %}
+        {% for post in posts %}{{ post_card(post, loop.index0 % 6) }}{% endfor %}
       </div>
     {% elif not destaque %}
-      <div class="vazio">
-        <p>Nenhum post encontrado.</p>
-        <a href="{{ url_for('index') }}" class="btn btn-outline" style="margin-top:12px;">Ver tudo</a>
+      <div class="vazio vazio-rich">
+        <svg class="vazio-art" viewBox="0 0 160 120" fill="none" aria-hidden="true">
+          <rect x="14" y="14" width="132" height="92" rx="12" fill="rgba(17,24,33,.9)" stroke="rgba(120,150,185,.35)"/>
+          <circle cx="29" cy="28" r="3" fill="#ff6b63"/><circle cx="40" cy="28" r="3" fill="#e3b341"/><circle cx="51" cy="28" r="3" fill="#39d98a"/>
+          <path d="M26 50h44M26 64h72M26 78h30" stroke="rgba(120,150,185,.4)" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="108" cy="72" r="22" fill="rgba(7,9,13,.85)" stroke="#39d98a" stroke-width="3"/>
+          <path d="m124 88 16 16" stroke="#39d98a" stroke-width="5" stroke-linecap="round"/>
+          <path d="M100 72h16" stroke="#39d98a" stroke-width="3" stroke-linecap="round" opacity=".6"/>
+        </svg>
+        <h2>Nada por aqui&hellip; ainda</h2>
+        <p>
+          {% if busca %}Não encontramos resultados para &ldquo;<strong>{{ busca }}</strong>&rdquo;{% if categoria_ativa %} em <strong>{{ categoria_ativa }}</strong>{% endif %}. Tente outro termo ou explore uma categoria.
+          {% elif categoria_ativa %}Ainda não há posts em <strong>{{ categoria_ativa }}</strong>.
+          {% else %}Ainda não há posts publicados.{% endif %}
+        </p>
+        <div class="vazio-actions">
+          <a href="{{ url_for('index') }}" class="btn btn-primary">{{ ico('arrow-left') }} Ver todos os posts</a>
+          {% if busca %}
+          <a href="{{ url_for('ia.index', tema=busca) }}" class="btn btn-ai">{{ ico('sparkles') }} Gerar atividade sobre &ldquo;{{ busca|truncate(24, true, '…') }}&rdquo;</a>
+          {% endif %}
+        </div>
+        {% if categorias %}
+        <div class="vazio-chips">
+          {% for c in categorias %}
+          <a class="tag-categoria cat-{{ c.categoria|lower|replace(' ', '') }}" href="{{ url_for('index', categoria=c.categoria) }}">{{ c.categoria }} &middot; {{ c.total }}</a>
+          {% endfor %}
+        </div>
+        {% endif %}
       </div>
     {% endif %}
 
   </div>
 
-  <!-- SIDEBAR -->
+  <!-- ───────────────────────── SIDEBAR ───────────────────────── -->
   <aside class="sidebar">
 
-    <!-- Autor -->
+    <div class="sidebar-box">
+      <h4>Buscar</h4>
+      <form class="side-search" method="get" action="{{ url_for('index') }}" role="search">
+        <input type="search" class="input" name="q" placeholder="Palavra-chave…" value="{{ busca }}" aria-label="Buscar posts" autocomplete="off" data-search>
+        <button type="submit" class="btn btn-primary btn-sm" aria-label="Buscar">{{ ico('search') }}</button>
+      </form>
+    </div>
+
     <div class="sidebar-box">
       <div class="perfil-mini">
-        <span class="avatar avatar-lg">AD</span>
+        <span class="avatar avatar-lg avatar-ring">{{ perfil.avatar if perfil and perfil.avatar else 'AD' }}</span>
         <h4>{{ perfil.nome if perfil else 'Allan Dev' }}</h4>
         <p>{{ perfil.titulo if perfil else 'Security Researcher' }}</p>
       </div>
-      <a href="{{ url_for('perfil_publico') }}" class="btn btn-outline btn-block btn-sm">Ver perfil &rarr;</a>
+      <a href="{{ url_for('perfil_publico') }}" class="btn btn-outline btn-block btn-sm">Ver perfil {{ ico('arrow-right') }}</a>
     </div>
 
-    <!-- Categorias -->
     <div class="sidebar-box">
       <h4>Categorias</h4>
       <ul class="lista-categorias">
+        <li>
+          <a href="{{ url_for('index') }}" class="{{ 'active' if not categoria_ativa else '' }}">
+            <span class="lc-name"><i class="dd-dot dot-all" aria-hidden="true"></i>Todas</span>
+            <span class="lc-count">{{ categorias | sum(attribute='total') }}</span>
+          </a>
+        </li>
         {% for c in categorias %}
         <li>
-          <a href="{{ url_for('index', categoria=c.categoria) }}"
-             class="{{ 'active' if categoria_ativa == c.categoria else '' }}">
-            {{ c.categoria }}<span>{{ c.total }}</span>
+          <a href="{{ url_for('index', categoria=c.categoria) }}" class="cat-{{ c.categoria|lower|replace(' ', '') }} {{ 'active' if categoria_ativa == c.categoria else '' }}">
+            <span class="lc-name"><i class="dd-dot" aria-hidden="true"></i>{{ c.categoria }}</span>
+            <span class="lc-count">{{ c.total }}</span>
           </a>
         </li>
         {% endfor %}
       </ul>
     </div>
 
-    <!-- Terminal widget -->
-    <div class="sidebar-box sidebar-terminal">
-      <div class="term-bar">
-        <span class="term-dot"></span>
-        <span class="term-dot"></span>
-        <span class="term-dot"></span>
-      </div>
-      <div class="term-lines">
-        <div class="term-line"><span class="term-prompt">$</span><span class="term-cmd">nmap -sV -p- target.io</span></div>
-        <div class="term-line"><span class="term-prompt">$</span><span class="term-cmd">sqlmap -u "url" --dbs</span></div>
-        <div class="term-line"><span class="term-prompt">$</span><span class="term-cmd">python exploit.py --rce</span></div>
-        <div class="term-line" style="color:var(--accent);">&gt; acesso obtido _</div>
-      </div>
+    <div class="sidebar-box cta-ai">
+      <span class="cta-ai-ico">{{ ico('sparkles') }}</span>
+      <h3 class="sb-title">Atividades com IA</h3>
+      <p>Escolha um tema e receba uma atividade prática sob medida para o seu nível.</p>
+      <a href="{{ url_for('ia.index') }}" class="btn btn-ai btn-block">Gerar atividade {{ ico('arrow-right') }}</a>
     </div>
 
-    <!-- CTA -->
     <div class="sidebar-box sidebar-cta">
       <h4>Comece por aqui</h4>
-      <p>Se é iniciante, vá em <strong>Fundamentos</strong>. Se já tem base, pule direto para <strong>Pentest</strong> ou <strong>CTF</strong>.</p>
+      <ol class="steps">
+        <li><a href="{{ url_for('index', categoria='Fundamentos') }}"><b>1</b><span><strong>Fundamentos</strong><small>Leia a base antes de tudo</small></span></a></li>
+        <li><a href="{{ url_for('atividades_index') }}"><b>2</b><span><strong>Atividades</strong><small>Pratique no terminal</small></span></a></li>
+        <li><a href="{{ url_for('index', categoria='Pentest') }}"><b>3</b><span><strong>Pentest &amp; CTF</strong><small>Aplique no laboratório</small></span></a></li>
+      </ol>
     </div>
 
   </aside>

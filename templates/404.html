@@ -1,10 +1,40 @@
 {% extends "base.html" %}
+{% from "_ui.html" import ico %}
 {% block title %}Página não encontrada — Allan Dev{% endblock %}
 
 {% block content %}
-<div class="wrap erro-page">
-  <h1>404</h1>
-  <p>Essa página não existe ou foi removida.</p>
-  <a href="{{ url_for('index') }}" class="btn btn-primary">Voltar para o início</a>
-</div>
+<section class="erro-page">
+  <div class="hero-bg" aria-hidden="true">
+    <span class="hero-orb o1"></span>
+    <span class="hero-orb o3"></span>
+  </div>
+  <div class="wrap erro-inner">
+    <span class="erro-code" aria-hidden="true">404</span>
+    <h1>Essa página não existe&hellip; ou foi removida.</h1>
+    <p class="erro-sub">O caminho que você tentou acessar não está no servidor. Vamos te colocar de volta na trilha.</p>
+
+    <div class="tx erro-term" aria-hidden="true">
+      <div class="tx-bar">
+        <span class="tx-dots"><i></i><i></i><i></i></span>
+        <span class="tx-title">bash &mdash; 404</span>
+      </div>
+      <div class="tx-body">
+        <div class="tx-line"><span class="tx-prompt">$</span><span class="tx-cmd">cat {{ request.path|truncate(48, true, '…') }}</span></div>
+        <div class="tx-line tx-out"><span class="tx-err">cat: {{ request.path|truncate(48, true, '…') }}: No such file or directory</span></div>
+        <div class="tx-line"><span class="tx-prompt">$</span><span class="tx-cmd">cd ~/inicio</span><span class="tx-caret"></span></div>
+      </div>
+    </div>
+
+    <div class="erro-actions">
+      <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg">{{ ico('home') }} Voltar para o início</a>
+      <a href="{{ url_for('atividades_index') }}" class="btn btn-outline btn-lg">{{ ico('target') }} Ver atividades</a>
+    </div>
+
+    <form class="hero-search erro-search" method="get" action="{{ url_for('index') }}" role="search">
+      {{ ico('search') }}
+      <input type="search" name="q" placeholder="Ou busque por um assunto…" aria-label="Buscar posts" autocomplete="off" data-search>
+      <button type="submit" class="btn btn-primary btn-sm">Buscar</button>
+    </form>
+  </div>
+</section>
 {% endblock %}

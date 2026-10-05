@@ -2,44 +2,68 @@
 {% block title %}Perfil — Admin{% endblock %}
 {% block heading %}Perfil{% endblock %}
 
+{% block topbar_actions %}{% endblock %}
+
 {% block admin_content %}
-<section class="admin-panel form-panel">
-  <form method="post" class="admin-form">
-    <div class="form-row form-row-split">
-      <div>
-        <label for="nome">Nome</label>
-        <input type="text" id="nome" name="nome" required value="{{ perfil.nome }}">
-      </div>
-      <div>
-        <label for="avatar">Iniciais do avatar</label>
-        <input type="text" id="avatar" name="avatar" maxlength="3" value="{{ perfil.avatar }}">
-      </div>
+<div class="perfil-grid">
+  <section class="admin-panel">
+    <div class="admin-panel-head">
+      <h2><svg class="ic"><use href="#a-user"/></svg> Dados públicos</h2>
+      <span class="pf-hint">Aparecem na página “Sobre” e nos posts</span>
     </div>
 
-    <div class="form-row">
-      <label for="titulo">Título / cargo</label>
-      <input type="text" id="titulo" name="titulo" value="{{ perfil.titulo }}" placeholder="Ex: Analista de Segurança da Informação">
-    </div>
-
-    <div class="form-row">
-      <label for="bio">Bio</label>
-      <textarea id="bio" name="bio" rows="3">{{ perfil.bio }}</textarea>
-    </div>
-
-    <div class="form-row form-row-split">
-      <div>
-        <label for="email">Email</label>
-        <input type="email" id="email" name="email" value="{{ perfil.email }}">
+    <form method="post" class="admin-form" id="perfilForm">
+      <div class="form-row form-row-split form-row-split-wide">
+        <div class="form-row">
+          <label for="nome">Nome</label>
+          <input type="text" id="nome" name="nome" required value="{{ perfil.nome }}" autocomplete="name">
+        </div>
+        <div class="form-row">
+          <label for="avatar">Iniciais do avatar <span class="form-hint">até 3 letras</span></label>
+          <input type="text" id="avatar" name="avatar" maxlength="3" value="{{ perfil.avatar }}" autocomplete="off">
+        </div>
       </div>
-      <div>
-        <label for="local">Localização</label>
-        <input type="text" id="local" name="local" value="{{ perfil.local }}">
-      </div>
-    </div>
 
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">Salvar perfil</button>
+      <div class="form-row">
+        <label for="titulo">Título / cargo</label>
+        <input type="text" id="titulo" name="titulo" value="{{ perfil.titulo }}" placeholder="Ex: Analista de Segurança da Informação" autocomplete="organization-title">
+      </div>
+
+      <div class="form-row">
+        <label for="bio">Bio</label>
+        <textarea id="bio" name="bio" rows="4">{{ perfil.bio }}</textarea>
+        <span class="pf-count" data-for="bio" data-max="280" aria-live="polite"></span>
+      </div>
+
+      <div class="form-row form-row-split">
+        <div class="form-row">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" value="{{ perfil.email }}" autocomplete="email">
+        </div>
+        <div class="form-row">
+          <label for="local">Localização</label>
+          <input type="text" id="local" name="local" value="{{ perfil.local }}" autocomplete="address-level2">
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary"><svg class="ic"><use href="#a-save"/></svg> Salvar perfil</button>
+      </div>
+    </form>
+  </section>
+
+  <aside class="perfil-preview" aria-label="Prévia do perfil">
+    <span class="perfil-preview-label"><svg class="ic"><use href="#a-eye"/></svg> Prévia ao vivo</span>
+    <div class="perfil-card">
+      <span class="avatar avatar-xl" id="pvAvatar">{{ perfil.avatar }}</span>
+      <h3 id="pvNome">{{ perfil.nome }}</h3>
+      <p class="perfil-card-titulo" id="pvTitulo">{{ perfil.titulo }}</p>
+      <p class="perfil-card-bio" id="pvBio">{{ perfil.bio }}</p>
+      <ul class="perfil-card-info">
+        <li><svg class="ic"><use href="#a-mail"/></svg> <span id="pvEmail">{{ perfil.email }}</span></li>
+        <li><svg class="ic"><use href="#a-pin"/></svg> <span id="pvLocal">{{ perfil.local }}</span></li>
+      </ul>
     </div>
-  </form>
-</section>
+  </aside>
+</div>
 {% endblock %}
