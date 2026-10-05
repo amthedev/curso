@@ -56,8 +56,12 @@ TIPOS = {
     "aberta": "Resposta aberta",
     "comando": "Desafio de comando",
     "ordenar": "Ordenar passos",
+    "associar": "Associar pares",
+    "lacuna": "Completar lacunas",
+    "linha": "Caça ao erro",
 }
-XP_PADRAO = {"multipla": 10, "vf": 5, "aberta": 20, "comando": 15, "ordenar": 15}
+XP_PADRAO = {"multipla": 10, "vf": 5, "aberta": 20, "comando": 15, "ordenar": 15,
+             "associar": 15, "lacuna": 10, "linha": 20}
 XP_MIN, XP_MAX = 5, 40
 
 TEMA_MAX = 120
@@ -73,7 +77,35 @@ _ALIAS_TIPO = {
     "comando": "comando", "pratica": "comando", "prática": "comando", "command": "comando",
     "ordenar": "ordenar", "ordem": "ordenar", "ordenacao": "ordenar", "ordenação": "ordenar",
     "sequencia": "ordenar", "sequência": "ordenar", "ordering": "ordenar",
+    "associar": "associar", "associacao": "associar", "associação": "associar", "pareamento": "associar",
+    "parear": "associar", "relacionar": "associar", "ligar": "associar", "match": "associar",
+    "matching": "associar", "associar_pares": "associar",
+    "lacuna": "lacuna", "lacunas": "lacuna", "completar": "lacuna", "completar_lacunas": "lacuna",
+    "preencher": "lacuna", "preencher_lacunas": "lacuna", "cloze": "lacuna", "fill_blank": "lacuna",
+    "fill_in_the_blank": "lacuna",
+    "linha": "linha", "linhas": "linha", "caca_ao_erro": "linha", "caça_ao_erro": "linha",
+    "cacar_erro": "linha", "achar_o_erro": "linha", "find_the_bug": "linha", "spot_the_error": "linha",
 }
+_ALIAS_LINGUAGEM = {
+    "log": "log", "logs": "log", "syslog": "log", "bash": "bash", "sh": "bash", "shell": "bash",
+    "zsh": "bash", "terminal": "bash", "python": "python", "py": "python", "http": "http",
+    "https": "http", "request": "http", "requisicao": "http", "requisição": "http", "sql": "sql",
+    "mysql": "sql", "postgres": "sql", "sqlite": "sql", "text": "text", "texto": "text", "txt": "text",
+}
+LINGUAGENS = ("log", "bash", "python", "http", "sql", "text")
+
+# Limites dos tipos interativos
+ASSOC_MIN, ASSOC_MAX = 3, 5
+ASSOC_TERMO_MAX, ASSOC_DEF_MAX = 60, 140
+LACUNA_MIN, LACUNA_MAX = 1, 5
+LACUNA_TEXTO_MAX = 600
+LACUNA_RESP_MAX = 60          # tamanho de cada resposta aceita
+LACUNA_ACEITAS_MAX = 6        # respostas aceitas por lacuna
+LACUNA_DIGITADO_MAX = 80      # o que o aluno pode digitar em cada lacuna
+LINHA_MIN, LINHA_MAX = 3, 15
+LINHA_CHARS_MAX = 160
+LINHA_CORRETAS_MAX = 5
+TOPICO_RE = re.compile(r"[a-z0-9-]{1,60}")
 _ALIAS_NIVEL = {
     "iniciante": "Iniciante", "basico": "Iniciante", "básico": "Iniciante",
     "intermediario": "Intermediário", "intermediário": "Intermediário",
@@ -511,7 +543,7 @@ def _id_curto(usados: set) -> str:
 
 
 def embaralhar_questao(q: dict) -> dict:
-    """Embaralha alternativas (multipla) e ordem de exibição (ordenar)."""
+    """Embaralha alternativas (multipla), ordem de exibição (ordenar) e as definições (associar)."""
     if q["tipo"] == "multipla":
         ordem = list(range(len(q["alternativas"])))
         _rng.shuffle(ordem)
@@ -526,7 +558,154 @@ def embaralhar_questao(q: dict) -> dict:
             if exib != ids:
                 break
         q["ordem_exibicao"] = exib
+    elif q["tipo"] == "associar":
+        # ordem_exibicao[j] = índice do par cuja definição aparece na posição j da coluna da direita.
+        # Nunca fica igual à ordem dos termos (senão "tudo na linha" seria a resposta).
+        n = len(q["pares"])
+        ident = list(range(n))
+        exib = ident[:]
+        for _ in range(12):
+            _rng.shuffle(exib)
+            if exib != ident:
+                break
+        q["ordem_exibicao"] = exib
     return q
+
+
+def _topico_valido(valor) -> str | None:
+    """Slug de tópico (opcional) — [a-z0-9-] até 60 chars; qualquer outra coisa é descartada."""
+    if not isinstance(valor, str):
+        return None
+    v = valor.strip().lower()
+    return v if TOPICO_RE.fullmatch(v) else None
+
+
+def _linha_codigo(valor, maxlen: int) -> str:
+    """Linha de log/código: preserva a indentação (tabs viram 4 espaços), tira controle e corta o excesso."""
+    if valor is None or isinstance(valor, bool):
+        return ""
+    if isinstance(valor, (int, float)):
+        valor = str(valor)
+    if not isinstance(valor, str):
+        return ""
+    valor = unicodedata.normalize("NFC", valor.replace("\r", "")).replace("\t", "    ")
+    valor = _CTRL_RE.sub("", valor.replace("\n", " ")).rstrip()
+    if len(valor) > maxlen:
+        valor = valor[: maxlen - 1].rstrip() + "…"
+    return valor
+
+
+def _norm_lacuna(s) -> str:
+    """Comparação de lacunas: sem acento, minúsculas, espaços colapsados, sem aspas/crases nas pontas."""
+    s = unicodedata.normalize("NFC", str(s if s is not None else ""))
+    s = s.strip().strip("`'\"“”‘’").strip().rstrip(".;,").strip()
+    return re.sub(r"\s+", " ", _sem_acento(s.lower()))
+
+
+def _normalizar_associar(q: dict, base: dict) -> bool:
+    brutas = q.get("pares") or q.get("associacoes") or q.get("associações") or q.get("pairs")
+    if isinstance(brutas, dict):
+        brutas = [{"termo": k, "definicao": v} for k, v in brutas.items()]
+    if not isinstance(brutas, list):
+        return False
+    pares, termos_vistos, defs_vistas = [], set(), set()
+    for p in brutas:
+        if isinstance(p, dict):
+            termo = p.get("termo") or p.get("term") or p.get("esquerda") or p.get("a")
+            defi = (p.get("definicao") or p.get("definição") or p.get("definition") or p.get("descricao")
+                    or p.get("direita") or p.get("b"))
+        elif isinstance(p, (list, tuple)) and len(p) == 2:
+            termo, defi = p
+        else:
+            continue
+        termo, defi = _txt(termo, ASSOC_TERMO_MAX), _txt(defi, ASSOC_DEF_MAX)
+        if not termo or not defi:
+            continue
+        kt, kd = termo.lower(), defi.lower()
+        if kt in termos_vistos or kd in defs_vistas or kt == kd:  # par ambíguo: descarta
+            continue
+        termos_vistos.add(kt)
+        defs_vistas.add(kd)
+        pares.append({"termo": termo, "definicao": defi})
+        if len(pares) >= ASSOC_MAX:
+            break
+    if len(pares) < ASSOC_MIN:
+        return False
+    base["pares"] = pares
+    return True
+
+
+def _normalizar_lacuna(q: dict, base: dict) -> bool:
+    texto = _txt(q.get("texto") or q.get("frase"), LACUNA_TEXTO_MAX, multilinha=True)
+    texto = texto.replace("`", "")
+    texto = re.sub(r"_{3,}", "___", texto)
+    brutas = q.get("lacunas") or q.get("respostas") or q.get("gabarito")
+    if not isinstance(brutas, list) or not texto:
+        return False
+    lacunas = []
+    for item in brutas:
+        if isinstance(item, dict):
+            item = item.get("respostas") or item.get("aceitas") or item.get("resposta")
+        if isinstance(item, (str, int, float)) and not isinstance(item, bool):
+            item = [item]
+        if not isinstance(item, list):
+            return False
+        aceitas, vistos = [], set()
+        for a in item:
+            a = _txt(a, LACUNA_RESP_MAX).replace("___", "")
+            k = _norm_lacuna(a)
+            if k and k not in vistos:
+                vistos.add(k)
+                aceitas.append(a.strip())
+            if len(aceitas) >= LACUNA_ACEITAS_MAX:
+                break
+        if not aceitas:
+            return False
+        lacunas.append(aceitas)
+    if not LACUNA_MIN <= len(lacunas) <= LACUNA_MAX or texto.count("___") != len(lacunas):
+        return False
+    base.update(texto=texto, lacunas=lacunas)
+    return True
+
+
+def _normalizar_linha(q: dict, base: dict) -> bool:
+    bruto = q.get("trecho") or q.get("linhas") or q.get("codigo") or q.get("código") or q.get("log")
+    if isinstance(bruto, str):
+        bruto = bruto.replace("\r\n", "\n").split("\n")
+    if not isinstance(bruto, list):
+        return False
+    linhas = [_linha_codigo(x, LINHA_CHARS_MAX) for x in bruto[:LINHA_MAX]]
+    while linhas and not linhas[-1]:
+        linhas.pop()
+    if len([x for x in linhas if x]) < LINHA_MIN:
+        return False
+
+    brutas = q.get("corretas") or q.get("linhas_corretas") or q.get("correta")
+    if isinstance(brutas, (int, str)) and not isinstance(brutas, bool):
+        brutas = [brutas]
+    if not isinstance(brutas, list):
+        return False
+    nums = []
+    for c in brutas:
+        if isinstance(c, bool):
+            return False
+        if isinstance(c, str) and c.strip().isdigit():
+            c = int(c.strip())
+        if isinstance(c, float) and c.is_integer():
+            c = int(c)
+        if not isinstance(c, int):
+            return False
+        nums.append(c)
+    if 0 in nums:            # o modelo contou a partir de 0: converte para "linha 1 = primeira"
+        nums = [n + 1 for n in nums]
+    corretas = sorted(set(nums))
+    if (not 1 <= len(corretas) <= LINHA_CORRETAS_MAX or len(corretas) >= len(linhas)
+            or corretas[0] < 1 or corretas[-1] > len(linhas)
+            or any(not linhas[n - 1] for n in corretas)):
+        return False
+    lang = _ALIAS_LINGUAGEM.get(_sem_acento(str(q.get("linguagem") or q.get("lang") or "").strip().lower()), "text")
+    base.update(trecho=linhas, linguagem=lang, corretas=corretas)
+    return True
 
 
 def _normalizar_questao(q, tipos_permitidos) -> dict | None:
@@ -547,6 +726,9 @@ def _normalizar_questao(q, tipos_permitidos) -> dict | None:
         "explicacao": _txt(q.get("explicacao") or q.get("explicação"), 900, multilinha=True),
         "dica": _txt(q.get("dica"), 300),
     }
+    topico = _topico_valido(q.get("topico"))
+    if topico:
+        base["topico"] = topico
 
     if tipo == "multipla":
         brutas = q.get("alternativas") or q.get("opcoes") or q.get("opções")
@@ -612,6 +794,18 @@ def _normalizar_questao(q, tipos_permitidos) -> dict | None:
         usados: set = set()
         base["passos"] = [{"id": _id_curto(usados), "texto": p} for p in passos]
 
+    elif tipo == "associar":
+        if not _normalizar_associar(q, base):
+            return None
+
+    elif tipo == "lacuna":
+        if not _normalizar_lacuna(q, base):
+            return None
+
+    elif tipo == "linha":
+        if not _normalizar_linha(q, base):
+            return None
+
     return embaralhar_questao(base)
 
 
@@ -664,6 +858,31 @@ def normalizar_atividade(dados, *, tema: str, nivel: str, quantidade: int,
 # Geração
 # ---------------------------------------------------------------------------
 
+# Exemplo JSON de TODOS os tipos de questão (um array válido). Reaproveitado nos prompts
+# (aqui e no cronograma): `"questoes": ` + SCHEMA_TIPOS_DOC. `topico` (slug [a-z0-9-], opcional)
+# pode ser acrescentado a qualquer questão e é preservado por normalizar_atividade.
+SCHEMA_TIPOS_DOC = """[
+    {"tipo": "multipla", "enunciado": "...", "alternativas": ["...", "...", "...", "..."], "correta": 0, "explicacao": "...", "dica": "...", "xp": 10},
+    {"tipo": "vf", "enunciado": "afirmação a julgar", "correta": true, "explicacao": "...", "dica": "...", "xp": 5},
+    {"tipo": "aberta", "enunciado": "...", "gabarito": "resposta modelo", "criterios": ["...", "..."], "dica": "...", "xp": 20},
+    {"tipo": "comando", "enunciado": "...", "respostas_aceitas": ["...", "..."], "explicacao": "...", "dica": "...", "xp": 15},
+    {"tipo": "ordenar", "enunciado": "...", "passos": ["primeiro", "segundo", "terceiro", "quarto"], "explicacao": "...", "dica": "...", "xp": 15},
+    {"tipo": "associar", "enunciado": "Associe cada ... ao seu ...", "pares": [{"termo": "...", "definicao": "..."}, {"termo": "...", "definicao": "..."}, {"termo": "...", "definicao": "..."}], "explicacao": "...", "dica": "...", "xp": 15},
+    {"tipo": "lacuna", "enunciado": "Complete a frase", "texto": "O comando ___ lista arquivos e ___ mostra o diretório atual.", "lacunas": [["ls"], ["pwd"]], "explicacao": "...", "dica": "...", "xp": 10},
+    {"tipo": "linha", "enunciado": "Clique na(s) linha(s) suspeita(s) deste log", "trecho": ["linha 1", "linha 2", "linha 3", "linha 4", "linha 5"], "linguagem": "log", "corretas": [3], "explicacao": "...", "dica": "...", "xp": 20}
+  ]"""
+
+# Regras de cada tipo (texto de prompt) — também reaproveitável pelo cronograma.
+REGRAS_TIPOS_DOC = """- multipla: exatamente 4 alternativas plausíveis e distintas, só 1 correta; "correta" é o índice (0 a 3). As alternativas serão embaralhadas: na explicação NÃO cite letras ou posições ("alternativa B"), cite o conteúdo.
+- vf: "enunciado" é uma afirmação; "correta" é true ou false. Equilibre verdadeiras e falsas.
+- aberta: pergunta discursiva de resposta curta (1 a 3 frases); "gabarito" é a resposta modelo; "criterios" tem 2 a 4 pontos que uma boa resposta precisa conter.
+- comando: desafio prático "qual comando faz X?" com alvo, arquivo ou porta concretos no enunciado; "respostas_aceitas" traz de 2 a 6 variações corretas e equivalentes (flags em outra ordem, forma curta/longa, flags combinadas). Use <placeholder> (ex.: <ip>) só onde o aluno pode digitar qualquer valor. Não use sudo. Nada destrutivo.
+- ordenar: de 4 a 6 passos curtos de um procedimento, em "passos" NA ORDEM CORRETA (serão embaralhados depois), sem numeração.
+- associar: "pares" com 3 a 5 itens {"termo","definicao"}: termo curto (até 6 palavras) e definição de uma linha (até ~15 palavras). Cada termo tem UMA definição inequívoca e as definições são todas distintas — nunca duas que sirvam para o mesmo termo. Liste na ordem que quiser (as definições serão embaralhadas).
+- lacuna: "texto" com 1 a 4 lacunas marcadas exatamente com ___ (três underscores), sem crases; "lacunas" é uma lista com UMA lista de respostas aceitas por lacuna, na ordem em que aparecem (ex.: [["ls"], ["pwd", "/bin/pwd"]]). Respostas curtas (1 a 3 palavras, um comando ou uma flag) e sem ambiguidade; o número de ___ tem de ser igual ao número de listas.
+- linha: "trecho" é uma lista de 5 a 15 linhas (log, comandos, código ou requisição HTTP; até 160 caracteres cada; indentação preservada); "corretas" são os NÚMEROS das linhas (a primeira é a 1) que contêm o problema/ataque/erro pedido — de 1 a 4 linhas; as demais precisam ser claramente normais. "linguagem": log, bash, python, http, sql ou text. Só IPs e domínios de laboratório. O enunciado NÃO pode entregar qual é a linha.
+- "xp" sugerido: multipla 10, vf 5, aberta 20, comando 15, ordenar 15, associar 15, lacuna 10, linha 20 (±5 conforme a dificuldade)."""
+
 SCHEMA_EXEMPLO = """{
   "titulo": "string curta e chamativa",
   "descricao": "1-2 frases sobre o que o aluno vai praticar",
@@ -671,13 +890,7 @@ SCHEMA_EXEMPLO = """{
   "nivel": "Iniciante | Intermediário | Avançado",
   "objetivos": ["3 a 5 objetivos de aprendizagem curtos"],
   "resumo_teorico": "markdown curto",
-  "questoes": [
-    {"tipo": "multipla", "enunciado": "...", "alternativas": ["...", "...", "...", "..."], "correta": 0, "explicacao": "...", "dica": "...", "xp": 10},
-    {"tipo": "vf", "enunciado": "afirmação a julgar", "correta": true, "explicacao": "...", "dica": "...", "xp": 5},
-    {"tipo": "aberta", "enunciado": "...", "gabarito": "resposta modelo", "criterios": ["...", "..."], "dica": "...", "xp": 20},
-    {"tipo": "comando", "enunciado": "...", "respostas_aceitas": ["...", "..."], "explicacao": "...", "dica": "...", "xp": 15},
-    {"tipo": "ordenar", "enunciado": "...", "passos": ["primeiro", "segundo", "terceiro", "quarto"], "explicacao": "...", "dica": "...", "xp": 15}
-  ]
+  "questoes": """ + SCHEMA_TIPOS_DOC + """
 }"""
 
 PROMPT_SISTEMA = f"""Você é um professor sênior de segurança da informação (ofensiva e defensiva) que cria atividades de estudo para a plataforma brasileira "Allan Dev". Escreva sempre em português do Brasil.
@@ -698,12 +911,7 @@ Responda APENAS com um objeto JSON válido — sem markdown em volta, sem texto 
 {SCHEMA_EXEMPLO}
 
 REGRAS POR TIPO
-- multipla: exatamente 4 alternativas plausíveis e distintas, só 1 correta; "correta" é o índice (0 a 3). As alternativas serão embaralhadas: na explicação NÃO cite letras ou posições ("alternativa B"), cite o conteúdo.
-- vf: "enunciado" é uma afirmação; "correta" é true ou false. Equilibre verdadeiras e falsas.
-- aberta: pergunta discursiva de resposta curta (1 a 3 frases); "gabarito" é a resposta modelo; "criterios" tem 2 a 4 pontos que uma boa resposta precisa conter.
-- comando: desafio prático "qual comando faz X?" com alvo, arquivo ou porta concretos no enunciado; "respostas_aceitas" traz de 2 a 6 variações corretas e equivalentes (flags em outra ordem, forma curta/longa, flags combinadas). Use <placeholder> (ex.: <ip>) só onde o aluno pode digitar qualquer valor. Não use sudo. Nada destrutivo.
-- ordenar: de 4 a 6 passos curtos de um procedimento, em "passos" NA ORDEM CORRETA (serão embaralhados depois), sem numeração.
-- "xp" sugerido: multipla 10, vf 5, aberta 20, comando 15, ordenar 15 (±5 conforme a dificuldade).
+{REGRAS_TIPOS_DOC}
 - "dica": pista curta que ajuda sem entregar a resposta.
 - "resumo_teorico": markdown curto (150 a 300 palavras) com subtítulos ##, listas e `código` — só o essencial para resolver as questões.
 - Todas as questões devem ser sobre o tema; não repita questões."""
@@ -943,7 +1151,9 @@ def gerar_dica_ia(q: dict) -> dict:
     if modo_mock():
         return {"dica": "Releia o resumo teórico: a resposta está nos conceitos-chave.", "tokens": 0,
                 "modelo": "mock"}
-    contexto = {k: v for k, v in q.items() if k in ("tipo", "enunciado", "alternativas", "passos")}
+    contexto = {k: v for k, v in publica(q).items()
+                if k in ("tipo", "enunciado", "alternativas", "passos", "termos", "definicoes",
+                         "partes", "trecho")}
     r = chamar_openrouter(
         [{"role": "system", "content": "Você é um tutor de segurança da informação. Dê UMA dica curta "
           "(máx. 2 frases, pt-BR) que ajude a resolver a questão SEM revelar a resposta. "
@@ -988,11 +1198,84 @@ def corrigir_objetiva(q: dict, resposta) -> dict:
         posicoes = sum(1 for a, b in zip(resposta, ids) if a == b)
         return {"correta": ok, "pontuacao": 100 if ok else 0, "resposta": resposta,
                 "posicoes_certas": posicoes}
+    if tipo == "associar":
+        n = len(q["pares"])
+        if (not isinstance(resposta, list) or len(resposta) != n
+                or any(isinstance(r, bool) or not isinstance(r, int) for r in resposta)):
+            raise ValueError("Associe todos os termos a uma definição.")
+        if any(not 0 <= r < n for r in resposta) or len(set(resposta)) != n:
+            raise ValueError("Cada definição só pode ser usada uma vez.")
+        certos = _associar_certos(q, resposta)
+        ok_n = sum(certos)
+        ok = ok_n == n
+        return {"correta": ok, "pontuacao": round(100 * ok_n / n), "resposta": list(resposta),
+                "feedback": "" if ok else f"{ok_n} de {n} pares estavam certos."}
+    if tipo == "lacuna":
+        n = len(q["lacunas"])
+        if not isinstance(resposta, list) or len(resposta) != n:
+            raise ValueError("Preencha as lacunas.")
+        digitado = [_txt(r, LACUNA_DIGITADO_MAX) if isinstance(r, str) else "" for r in resposta]
+        if not any(digitado):
+            raise ValueError("Preencha pelo menos uma lacuna.")
+        certas = _lacuna_certas(q, digitado)
+        ok_n = sum(certas)
+        ok = ok_n == n
+        return {"correta": ok, "pontuacao": round(100 * ok_n / n), "resposta": digitado,
+                "feedback": "" if ok else f"{ok_n} de {n} lacunas estavam certas."}
+    if tipo == "linha":
+        total = len(q["trecho"])
+        if (not isinstance(resposta, list) or not resposta or len(resposta) > total
+                or any(isinstance(r, bool) or not isinstance(r, int) for r in resposta)):
+            raise ValueError("Clique em pelo menos uma linha suspeita.")
+        if any(not 1 <= r <= total for r in resposta) or len(set(resposta)) != len(resposta):
+            raise ValueError("Linha inválida.")
+        marcadas = sorted(resposta)
+        acertos, falsos, esquecidas = _linha_conta(q, marcadas)
+        necessarias = len(q["corretas"])
+        ok = len(acertos) == necessarias and not falsos
+        pont = round(100 * max(0, len(acertos) - len(falsos)) / necessarias)
+        fb = ""
+        if not ok:
+            fb = f"Você achou {len(acertos)} de {necessarias} linha(s) suspeita(s)"
+            fb += f" e marcou {len(falsos)} que estava(m) normal(is)." if falsos else "."
+        return {"correta": ok, "pontuacao": pont, "resposta": marcadas, "feedback": fb}
     raise ValueError("Tipo de questão desconhecido.")
 
 
-def revelar(q: dict) -> dict:
-    """O que o aluno pode ver DEPOIS de responder (gabarito + explicação)."""
+# ---- detalhes dos tipos interativos (usados na correção, no gabarito e na revisão) ----
+
+def _ordem_associar(q: dict) -> list[int]:
+    """ordem_exibicao[j] = índice do par cuja definição aparece na posição j (com fallback seguro)."""
+    n = len(q["pares"])
+    exib = q.get("ordem_exibicao")
+    if isinstance(exib, list) and sorted(exib) == list(range(n)):
+        return exib
+    return list(range(n))
+
+
+def _associar_certos(q: dict, resposta: list[int]) -> list[bool]:
+    """resposta[i] = posição (na coluna embaralhada) escolhida para o termo i."""
+    exib = _ordem_associar(q)
+    return [0 <= j < len(exib) and exib[j] == i for i, j in enumerate(resposta)]
+
+
+def _lacuna_certas(q: dict, digitado: list[str]) -> list[bool]:
+    return [bool(_norm_lacuna(d)) and _norm_lacuna(d) in {_norm_lacuna(a) for a in aceitas}
+            for d, aceitas in zip(digitado, q["lacunas"])]
+
+
+def _linha_conta(q: dict, marcadas: list[int]) -> tuple[list[int], list[int], list[int]]:
+    """(acertos, falsos positivos, esquecidas) em números de linha."""
+    certas = set(q["corretas"])
+    m = set(marcadas)
+    return sorted(m & certas), sorted(m - certas), sorted(certas - m)
+
+
+def revelar(q: dict, resposta=None) -> dict:
+    """O que o aluno pode ver DEPOIS de responder (gabarito + explicação).
+
+    Com `resposta` (a que ele deu), os tipos interativos também devolvem o detalhe de cada
+    parte (pares/lacunas/linhas certas e erradas)."""
     out = {"explicacao": q.get("explicacao", "")}
     t = q["tipo"]
     if t in ("multipla", "vf"):
@@ -1004,6 +1287,21 @@ def revelar(q: dict) -> dict:
         out["respostas_aceitas"] = q["respostas_aceitas"][:4]
     elif t == "ordenar":
         out["ordem_correta"] = [p["id"] for p in q["passos"]]
+    elif t == "associar":
+        exib = _ordem_associar(q)
+        out["pares_corretos"] = [exib.index(i) for i in range(len(q["pares"]))]
+        if isinstance(resposta, list) and len(resposta) == len(q["pares"]):
+            out["acertos"] = _associar_certos(q, resposta)
+    elif t == "lacuna":
+        out["aceitas"] = [a[:4] for a in q["lacunas"]]
+        if isinstance(resposta, list) and len(resposta) == len(q["lacunas"]):
+            out["acertos"] = _lacuna_certas(q, [str(r) for r in resposta])
+    elif t == "linha":
+        out["corretas"] = list(q["corretas"])
+        if isinstance(resposta, list):
+            marcadas = sorted({r for r in resposta if isinstance(r, int) and not isinstance(r, bool)})
+            acertos, falsos, esquecidas = _linha_conta(q, marcadas)
+            out.update(acertos=acertos, falsos=falsos, esquecidas=esquecidas)
     return out
 
 
@@ -1016,7 +1314,30 @@ def publica(q: dict) -> dict:
         textos = {p["id"]: p["texto"] for p in q["passos"]}
         ordem = q.get("ordem_exibicao") or list(textos)
         out["passos"] = [{"id": i, "texto": textos[i]} for i in ordem if i in textos]
+    elif q["tipo"] == "associar":
+        # termos na ordem original; definições embaralhadas (o mapeamento fica só no servidor)
+        out["termos"] = [p["termo"] for p in q["pares"]]
+        out["definicoes"] = [q["pares"][i]["definicao"] for i in _ordem_associar(q)]
+    elif q["tipo"] == "lacuna":
+        out["partes"] = q["texto"].split("___")
+    elif q["tipo"] == "linha":
+        out["trecho"] = q["trecho"]
+        out["linguagem"] = q.get("linguagem", "text")
     return out
+
+
+def _lacuna_preenchida(q: dict, valores: list[str]) -> str:
+    partes = q["texto"].split("___")
+    saida = [partes[0]]
+    for i, v in enumerate(valores):
+        saida.append(v if v else "___")
+        saida.append(partes[i + 1] if i + 1 < len(partes) else "")
+    return "".join(saida)
+
+
+def _trecho_curto(linha: str, n: int = 90) -> str:
+    linha = linha.strip()
+    return linha if len(linha) <= n else linha[: n - 1].rstrip() + "…"
 
 
 def resposta_legivel(q: dict, resposta) -> str:
@@ -1029,6 +1350,13 @@ def resposta_legivel(q: dict, resposta) -> str:
         if t == "ordenar":
             textos = {p["id"]: p["texto"] for p in q["passos"]}
             return " → ".join(textos.get(i, "?") for i in resposta)
+        if t == "associar":
+            defs = [q["pares"][i]["definicao"] for i in _ordem_associar(q)]
+            return "\n".join(f"{p['termo']} → {defs[j]}" for p, j in zip(q["pares"], resposta))
+        if t == "lacuna":
+            return _lacuna_preenchida(q, [str(r or "") for r in resposta])
+        if t == "linha":
+            return "Linhas " + ", ".join(str(n) for n in sorted(resposta))
         return str(resposta or "")
     except (KeyError, IndexError, TypeError, ValueError):
         return ""
@@ -1046,6 +1374,12 @@ def gabarito_legivel(q: dict) -> str:
         return q["respostas_aceitas"][0]
     if t == "ordenar":
         return " → ".join(p["texto"] for p in q["passos"])
+    if t == "associar":
+        return "\n".join(f"{p['termo']} → {p['definicao']}" for p in q["pares"])
+    if t == "lacuna":
+        return _lacuna_preenchida(q, [a[0] for a in q["lacunas"]])
+    if t == "linha":
+        return "\n".join(f"{n}: {_trecho_curto(q['trecho'][n - 1])}" for n in q["corretas"])
     return ""
 
 

@@ -19,6 +19,14 @@ Fontes de XP:
   ia_atividade     ref "{id_atividade}"              (XP final da atividade com IA)
   ia_perfeita      ref "{id_atividade}"  xp=0        (marcador opcional de 100% de acerto,
                                                        alimenta a conquista "perfeccionista")
+
+Cronograma adaptativo (cronograma.py):
+  cronograma_dia       ref "YYYY-MM-DD" (dia do plano)   XP por completar as 3 missões do dia
+  cronograma_bau       ref "YYYY-MM-DD"                  XP do baú do dia
+  cronograma_boss      ref "YYYY-MM-DD"  xp=0            (marcador: boss da semana vencido,
+                                                         alimenta "Boss derrotado")
+  cronograma_dominado  ref "{slug_do_topico}"  xp=0      (marcador: tópico que chegou a domínio >= 4,
+                                                         alimenta "Mente afiada")
 """
 from __future__ import annotations
 
